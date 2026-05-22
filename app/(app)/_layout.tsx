@@ -1,9 +1,22 @@
-import { useAuth } from "@features/auth/presentation/hooks/useAuth";
-import { Stack } from "expo-router";
+import { SupabaseAuthRepository } from "@features/auth/infrastructure/repositories/SupabaseAuthRepository";
+import { useAuthStore } from "@features/auth/presentation/store/authStore";
+import { Stack, useRouter } from "expo-router";
 import { Text, TouchableOpacity } from "react-native";
 
+const authRepo = new SupabaseAuthRepository();
+
 export default function AppLayout() {
-  const { logout } = useAuth();
+  const { setUser } = useAuthStore();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await authRepo.logout();
+    } finally {
+      setUser(null);
+      router.replace("/(auth)/login");
+    }
+  };
 
   return (
     <Stack
@@ -18,7 +31,7 @@ export default function AppLayout() {
         options={{
           title: "Salas de Chat",
           headerRight: () => (
-            <TouchableOpacity onPress={logout} style={{ marginRight: 4 }}>
+            <TouchableOpacity onPress={handleLogout} style={{ marginRight: 4 }}>
               <Text style={{ color: "#fff", fontSize: 14 }}>Salir</Text>
             </TouchableOpacity>
           ),

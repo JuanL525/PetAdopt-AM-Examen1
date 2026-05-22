@@ -1,17 +1,20 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Room } from "@features/chat/domain/entities/Message";
 import { useRooms } from "@features/chat/presentation/hooks/useRooms";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    ImageBackground,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import { colors, font } from "../theme";
 
 export default function RoomsScreen() {
   const { rooms, isLoading, createRoom, isCreating, createError } = useRooms();
@@ -34,21 +37,34 @@ export default function RoomsScreen() {
       style={styles.roomItem}
       onPress={() => router.push(`/chat/${item.id}`)}
     >
-      <Text style={styles.roomName}># {item.name}</Text>
-      <Text style={styles.roomDate}>{item.createdAt.toLocaleDateString()}</Text>
+      <View style={styles.roomLeft}>
+        <MaterialCommunityIcons name="server" size={24} color={colors.accentPrimary} />
+      </View>
+      <View style={styles.roomCenter}>
+        <Text style={styles.roomName}>{item.name}</Text>
+      </View>
+      <View style={styles.roomRight}>
+        <Text style={styles.roomDate}>{item.createdAt.toLocaleDateString()}</Text>
+      </View>
     </TouchableOpacity>
   );
 
   if (isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.accentPrimary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require("../../assets/images/fondo.avif")}
+      style={styles.bg}
+      imageStyle={styles.bgImage}
+      blurRadius={6}
+    >
+      <View style={styles.container}>
       <FlatList
         data={rooms}
         keyExtractor={(r) => r.id}
@@ -86,6 +102,7 @@ export default function RoomsScreen() {
               onChangeText={setRoomName}
               autoFocus
               maxLength={50}
+              placeholderTextColor={colors.muted}
             />
             <View style={styles.dialogActions}>
               <TouchableOpacity
@@ -100,76 +117,93 @@ export default function RoomsScreen() {
                 disabled={isCreating}
               >
                 {isCreating ? (
-                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.createText}>CREANDO...</Text>
                 ) : (
-                  <Text style={styles.createText}>Crear</Text>
+                  <Text style={styles.createText}>CREAR</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  bg: { flex: 1 },
+  bgImage: { resizeMode: 'cover', opacity: 1 },
+  container: { flex: 1, backgroundColor: 'transparent' },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  empty: { color: "#999", fontSize: 16 },
+  empty: { color: colors.muted, fontSize: 16 },
   roomItem: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderColor: "#e0e0e0",
+    backgroundColor: colors.surface,
+    padding: 14,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.surface2,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.accentPrimary,
+    borderRadius: 8,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
   },
-  roomName: { fontSize: 16, fontWeight: "600" },
-  roomDate: { fontSize: 12, color: "#999" },
+  roomLeft: { width: 40, alignItems: "center", justifyContent: "center" },
+  roomCenter: { flex: 1, paddingHorizontal: 8 },
+  roomRight: { minWidth: 80, alignItems: "flex-end" },
+  roomName: { fontSize: 16, fontWeight: "800", color: colors.text, textTransform: 'uppercase' },
+  roomDate: { fontSize: 12, color: colors.muted },
   fab: {
     position: "absolute",
     right: 20,
     bottom: 28,
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accentPrimary,
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowColor: colors.accentPrimary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  fabText: { color: "#fff", fontSize: 28, lineHeight: 32 },
+  fabText: { color: "#000", fontSize: 28, lineHeight: 32 },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(9,9,14,0.6)",
     justifyContent: "center",
     padding: 24,
   },
-  dialog: { backgroundColor: "#fff", borderRadius: 12, padding: 20 },
-  dialogTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 12 },
-  dialogError: { color: "red", fontSize: 13, marginBottom: 8 },
+  dialog: {
+    backgroundColor: colors.surface2,
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: colors.accentPrimary,
+  },
+  dialogTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 12, color: colors.text, fontFamily: font.title as any },
+  dialogError: { color: colors.accentSecondary, fontSize: 13, marginBottom: 8 },
   dialogInput: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: colors.surface2,
     borderRadius: 8,
     padding: 10,
     marginBottom: 16,
+    backgroundColor: colors.surface,
+    color: colors.text,
   },
   dialogActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10 },
   cancelBtn: { padding: 10 },
-  cancelText: { color: "#666", fontSize: 15 },
+  cancelText: { color: colors.muted, fontSize: 15 },
   createBtn: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.accentPrimary,
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  createText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  createText: { color: "#000", fontWeight: "700", fontSize: 15 },
 });
 

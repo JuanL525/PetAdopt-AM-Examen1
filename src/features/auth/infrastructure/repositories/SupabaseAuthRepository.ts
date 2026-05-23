@@ -1,62 +1,71 @@
-import { supabase } from "../../../../shared/infrastructure/supabase/client";
-import { User } from "../../domain/entities/User";
-import { IAuthRepository } from "../../domain/repositories/IAuthRepository";
+import { supabase } from '@shared/infrastructure/supabase/client';
+import { IAuthRepository } from '../../domain/repositories/IAuthRepository';
+import { User, CreateUserDTO, LoginDTO, isUserRole } from '../../domain/entities/User';
+import { AppError } from '@shared/domain/errors/AppError';
 
 export class SupabaseAuthRepository implements IAuthRepository {
-  async login(email: string, password: string): Promise<User> {
+  async login(dto: LoginDTO): Promise<User> {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: dto.email,
+      password: dto.password,
     });
-    if (error || !data.user) throw error;
+    if (error) throw new AppError('AUTH_LOGIN_FAILED', error.message);
+    if (!data.user) throw new AppError('AUTH_NO_USER', 'Usuario no encontrado');
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username, avatar_url")
-      .eq("id", data.user.id)
-      .single();
-
-    return {
-      id: data.user.id,
-      email: data.user.email!,
-      username: profile?.username ?? "",
-      avatarUrl: profile?.avatar_url ?? undefined,
-    };
+    return this.fetchProfile(data.user.id, data.user.email ?? '');
   }
 
-  async register(
-    email: string,
-    password: string,
-    username: string,
-  ): Promise<User> {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-    if (!data.user) throw new Error("No se pudo crear el usuario");
+  async register(dto: CreateUserDTO): Promise<User> {
+    const { data, error } = await supabase.auth.signUp({
+      email: dto.email,
+      password: dto.password,
+    });
+    if (error) throw new AppError('AUTH_REGISTER_FAILED', error.message);
+    if (!data.user) throw new AppError('AUTH_NO_USER', 'Error al crear usuario');
+
+    // Crear perfil con rol — esto es lo nuevo
     const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({ id: data.user.id, username });
-    if (profileError) throw new Error(profileError.message);
-    return { id: data.user.id, email: data.user.email!, username };
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        username: dto.username,
+        role: dto.role,           // <-- campo nuevo
+      });
+
+    if (profileError) throw new AppError('PROFILE_CREATE_FAILED', profileError.message);
+
+    return this.fetchProfile(data.user.id, dto.email);
   }
 
   async logout(): Promise<void> {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new AppError('AUTH_LOGOUT_FAILED', error.message);
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("username, avatar_url")
-      .eq("id", user.id)
+    return this.fetchProfile(user.id, user.email ?? '');
+  }
+
+  private async fetchProfile(userId: string, email: string): Promise<User> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, role, avatar_url, created_at')
+      .eq('id', userId)
       .single();
+
+    if (error) throw new AppError('PROFILE_FETCH_FAILED', error.message);
+
+    const role = isUserRole(data.role) ? data.role : 'client';
+
     return {
-      id: user.id,
-      email: user.email!,
-      username: profile?.username ?? "",
+      id: data.id,
+      username: data.username,
+      role,
+      avatarUrl: data.avatar_url,
+      createdAt: data.created_at,
+      email,
     };
   }
 }

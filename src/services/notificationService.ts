@@ -1,8 +1,14 @@
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 let NotificationsModule: typeof import('expo-notifications') | null = null;
 
 async function getNotifications(): Promise<typeof import('expo-notifications') | null> {
+  // Evitamos cargar expo-notifications en Expo Go para prevenir errores ruidosos de compatibilidad
+  if (Constants.appOwnership === 'expo') {
+    return null;
+  }
+
   if (!NotificationsModule) {
     try {
       const mod = await import('expo-notifications');
@@ -11,6 +17,8 @@ async function getNotifications(): Promise<typeof import('expo-notifications') |
           shouldShowAlert: true,
           shouldPlaySound: true,
           shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
         }),
       });
       NotificationsModule = mod;

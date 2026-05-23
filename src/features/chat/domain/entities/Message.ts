@@ -1,15 +1,14 @@
-export interface Message{
-    id: string;
-    roomId: string;
-    userId: string;
-    content: string;
-    createdAt: Date;
-    authorUsername?: string;
+export interface MessageAuthor {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  role: 'seller' | 'client';
 }
 
-export interface Room {
-    id: string;
-    name: string;
-    createdBy: string;
-    createdAt: Date;
+export interface Message {
+  id: string;
+  roomId: string;
+  content: string;
+  createdAt: string;
+  author: MessageAuthor;
 }

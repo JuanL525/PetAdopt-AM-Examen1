@@ -1,29 +1,16 @@
-import { AuthError } from "../../../../shared/domain/errors/AppError";
-import { User } from "../../domain/entities/User";
-import { IAuthRepository } from "../../domain/repositories/IAuthRepository";
+import { IAuthRepository } from '../../domain/repositories/IAuthRepository';
+import { User, CreateUserDTO } from '../../domain/entities/User';
 
 export class RegisterUseCase {
-  constructor(private readonly authRepo: IAuthRepository) {}
+  constructor(private readonly authRepository: IAuthRepository) {}
 
-  async execute(email: string, password: string, username: string): Promise<User> {
-    if (!email || !password || !username)
-      throw new AuthError('Todos los campos son requeridos');
-
-    if (password.length < 6)
-      throw new AuthError('La contraseña debe tener al menos 6 caracteres');
-
-    if (username.includes(' '))
-      throw new AuthError('El username no puede contener espacios');
-
-    try {
-      return await this.authRepo.register(email, password, username);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Error al registrar usuario';
-
-      throw new AuthError(message, error);
+  async execute(dto: CreateUserDTO): Promise<User> {
+    if (!dto.email || !dto.password || !dto.username) {
+      throw new Error('Todos los campos son obligatorios');
     }
+    if (dto.password.length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres');
+    }
+    return this.authRepository.register(dto);
   }
 }

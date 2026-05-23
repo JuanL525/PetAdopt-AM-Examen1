@@ -1,21 +1,23 @@
-import { Message, Room } from "../entities/Message";
+import { Message } from '../entities/Message';
+import { Room, CreateRoomDTO } from '../entities/Room';
 
 export interface IChatRepository {
-  getRooms(): Promise<Room[]>;
-
-  createRoom(name: string, userId: string): Promise<Room>;
-
+  // Mensajes
   getMessages(roomId: string): Promise<Message[]>;
+  sendMessage(roomId: string, content: string): Promise<Message>;
 
-  sendMessage(
-    roomId: string,
-    userId: string,
-    content: string,
-  ): Promise<Message>;
-
-  // Devuelve la funcion unsubscribe, compatible con el return de useEffect
+  /**
+   * Suscripción en tiempo real.
+   * Retorna una función de CLEANUP — esto es lo que hace posible
+   * la migración a AppWrite en el video 2: solo cambia esta implementación.
+   */
   subscribeToRoom(
     roomId: string,
-    onMessage: (msg: Message) => void,
+    onMessage: (message: Message) => void
   ): () => void;
+
+  // Salas
+  getRooms(): Promise<Room[]>;
+  createRoom(dto: CreateRoomDTO): Promise<Room>;
+  joinRoom(roomId: string): Promise<void>;
 }

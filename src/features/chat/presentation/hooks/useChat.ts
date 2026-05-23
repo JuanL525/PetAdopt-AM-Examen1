@@ -1,104 +1,35 @@
-import { useAuthStore } from "@features/auth/presentation/store/authStore";
-import { GetMessagesUseCase } from "@features/chat/application/use-cases/GetMessagesUseCase";
-import { SendMessageUseCase } from "@features/chat/application/use-cases/SendMessageUseCase";
-import { SubscribeToRoomUseCase } from "@features/chat/application/use-cases/SubscribeToRoomUseCase";
-import { Message } from "@features/chat/domain/entities/Message";
-import { SupabaseChatRepository } from "@features/chat/infrastructure/repositories/SupabaseChatRepository";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { AppState } from "react-native";
-import { getActiveRoomId } from "../../../../services/activeChatRoom";
-import { sendMessageNotification } from "../../../../services/notificationService";
-
-const chatRepo = new SupabaseChatRepository();
-const sendMessageUseCase = new SendMessageUseCase(chatRepo);
-const getMessagesUseCase = new GetMessagesUseCase(chatRepo);
-const subscribeUseCase = new SubscribeToRoomUseCase(chatRepo);
+import { useState, useCallback } from 'react';
+import { Message } from '../../domain/entities/Message';
+import { getMessagesUseCase, sendMessageUseCase, subscribeToRoomUseCase } from '../../../../di/container';
 
 export function useChat(roomId: string) {
-  const user = useAuthStore((s) => s.user);
-  const queryClient = useQueryClient();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setLoading] = useState(false);
 
-  // Paso 1: obtener historial de mensajes con cache
-  const { data: messages = [], isLoading } = useQuery({
-    queryKey: ["messages", roomId], // Clave única por sala
-    queryFn: () => getMessagesUseCase.execute(roomId),
-    enabled: !!user,
-    // Los mensajes antiguos no se revalidan automáticamente.
-    // Realtime se encarga de los mensajes nuevos.
-    staleTime: Infinity,
-  });
+  const loadMessages = useCallback(async () => {
+    if (!roomId) return;
+    setLoading(true);
+    try {
+      const data = await getMessagesUseCase.execute(roomId);
+      setMessages(data);
+    } finally {
+      setLoading(false);
+    }
+  }, [roomId]);
 
-  // Paso 2: suscribirse al canal Realtime
-  useEffect(() => {
-    const unsubscribe = subscribeUseCase.execute(roomId, async (newMsg) => {
-      queryClient.setQueryData(["messages", roomId], (old: Message[] = []) => {
-        // Evitar duplicados: el optimistic update ya agregó este mensaje
-        const exists = old.some((m) => m.id === newMsg.id);
-        return exists ? old : [...old, newMsg];
+  const sendMessage = useCallback(async (roomId: string, content: string) => {
+    await sendMessageUseCase.execute(roomId, content);
+  }, []);
+
+  const subscribeToRoom = useCallback((roomId: string) => {
+    loadMessages();
+    return subscribeToRoomUseCase.execute(roomId, (newMessage) => {
+      setMessages((prev) => {
+        const exists = prev.some((m) => m.id === newMessage.id);
+        return exists ? prev : [...prev, newMessage];
       });
-
-      // Enviar notificación local si el mensaje no lo envió el usuario actual
-      try {
-        if (!user) return;
-        if (newMsg.userId === user.id) return;
-
-        const activeRoomId = getActiveRoomId();
-        const appIsActive = AppState.currentState === 'active';
-
-        // Si el usuario está en la misma sala y la app está activa, no notificar
-        if (activeRoomId === roomId && appIsActive) return;
-
-        await sendMessageNotification(newMsg.authorUsername ?? 'Alguien', roomId, newMsg.content ?? '');
-      } catch (err) {
-        // swallow notification errors
-        console.warn('notification send error', err);
-      }
     });
-    return unsubscribe; // Cleanup al desmontar: cierra el WebSocket
-  }, [roomId, user]);
+  }, [roomId, loadMessages]);
 
-  // Paso 3: enviar mensaje con optimistic update via useMutation
-  const sendMutation = useMutation({
-    mutationFn: (content: string) =>
-      sendMessageUseCase.execute(roomId, user!.id, content),
-
-    // onMutate se ejecuta ANTES de la petición (optimistic update)
-    onMutate: async (content) => {
-      const tempMsg: Message = {
-        id: `temp-${Date.now()}`,
-        roomId,
-        userId: user!.id,
-        content,
-        createdAt: new Date(),
-        authorUsername: user!.username,
-      };
-      queryClient.setQueryData(["messages", roomId], (old: Message[] = []) => [
-        ...old,
-        tempMsg,
-      ]);
-      return { tempMsg }; // Contexto para onError
-    },
-
-    onSuccess: (realMsg, _content, context) => {
-      queryClient.setQueryData(["messages", roomId], (old: Message[] = []) =>
-        old.map((m) => (m.id === context?.tempMsg.id ? realMsg : m)),
-      );
-    },
-
-    onError: (_err, _content, context) => {
-      if (context?.tempMsg) {
-        queryClient.setQueryData(["messages", roomId], (old: Message[] = []) =>
-          old.filter((m) => m.id !== context.tempMsg.id),
-        );
-      }
-    },
-  });
-
-  return {
-    messages,
-    sendMessage: sendMutation.mutate,
-    isLoading,
-    isSending: sendMutation.isPending,
-  };
+  return { messages, isLoading, sendMessage, subscribeToRoom };
 }

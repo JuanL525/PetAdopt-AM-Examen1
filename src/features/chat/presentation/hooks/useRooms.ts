@@ -1,45 +1,29 @@
-import { useAuthStore } from "@features/auth/presentation/store/authStore";
-import { CreateRoomUseCase } from "@features/chat/application/use-cases/CreateRoomUseCase";
-import { Room } from "@features/chat/domain/entities/Message";
-import { SupabaseChatRepository } from "@features/chat/infrastructure/repositories/SupabaseChatRepository";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-
-const chatRepo = new SupabaseChatRepository();
-const createRoomUseCase = new CreateRoomUseCase(chatRepo);
+import { useState, useCallback } from 'react';
+import { Room } from '../../domain/entities/Room';
+import { supabase } from '@shared/infrastructure/supabase/client';
 
 export function useRooms() {
-  const user = useAuthStore((s) => s.user);
-  const queryClient = useQueryClient();
+  const [rooms, setRooms]       = useState<Room[]>([]);
+  const [isLoading, setLoading] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
-  // useQuery obtiene la lista de salas y la cachea bajo la clave ['rooms']
-  const {
-    data: rooms = [],
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["rooms"],
-    queryFn: () => chatRepo.getRooms(),
-    enabled: !!user, // Solo fetchar si hay usuario autenticado
-  });
+  const loadRooms = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('rooms')
+        .select('id, name, created_by, created_at')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setRooms((data ?? []).map((r: any) => ({
+        id: r.id, name: r.name, createdBy: r.created_by, createdAt: r.created_at,
+      })));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // useMutation para crear una sala nueva
-  const createMutation = useMutation({
-    mutationFn: (name: string) => createRoomUseCase.execute(name, user!.id),
-    onSuccess: (newRoom) => {
-      // Actualizar el cache 
-      queryClient.setQueryData(["rooms"], (old: Room[]) => [
-        newRoom,
-        ...(old ?? []),
-      ]);
-    },
-  });
-
-  return {
-    rooms,
-    isLoading,
-    error: error?.message ?? null,
-    createRoom: createMutation.mutate,
-    isCreating: createMutation.isPending,
-    createError: createMutation.error?.message ?? null,
-  };
+  return { rooms, isLoading, error, loadRooms };
 }

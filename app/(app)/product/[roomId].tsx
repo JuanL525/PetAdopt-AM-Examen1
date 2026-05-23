@@ -378,17 +378,17 @@ const styles = StyleSheet.create({
   },
   slidingPanel: {
     flex: 1,
-    marginTop: -24,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    marginTop: 2,
+    borderRadius: 24,
+    marginHorizontal: 16,
     backgroundColor: 'rgba(22, 32, 51, 0.9)', // Opaque frosted glass sliding panel
     borderWidth: 1.2,
     borderColor: 'rgba(255, 255, 255, 0.09)',
     padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
-    shadowRadius: 18,
+    shadowRadius: 16,
     elevation: 8,
   },
   productName: {
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   },
   priceValue: {
     color: '#60a5fa',
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
   },
   divider: {

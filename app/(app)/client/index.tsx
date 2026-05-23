@@ -11,6 +11,7 @@ import { useRooms } from '@features/chat/presentation/hooks/useRooms';
 import { Room } from '@features/chat/domain/entities/Room';
 import { getUserInitials } from '@features/auth/domain/entities/User';
 import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown, FadeIn, SlideInLeft } from 'react-native-reanimated';
 
 const auraColors = [
   { text: '#34d399', bg: 'rgba(52, 211, 153, 0.15)', iconBg: 'rgba(52, 211, 153, 0.12)' },
@@ -45,23 +46,25 @@ export default function ClientHome() {
   const renderRoom = ({ item, index }: { item: Room; index: number }) => {
     const colorPack = auraColors[index % auraColors.length];
     return (
-      <TouchableOpacity
-        style={[styles.roomCard, { borderLeftColor: colorPack.text }]}
-        activeOpacity={0.8}
-        onPress={() => router.push({
-          pathname: '/(app)/product/[roomId]',
-          params: { roomId: item.id, name: item.name }
-        })}
-      >
-        <View style={[styles.roomIcon, { backgroundColor: colorPack.iconBg }]}>
-          <Text style={[styles.roomIconText, { color: colorPack.text }]}>#</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.roomName}>{item.name}</Text>
-          <Text style={styles.roomMeta}>Toca para preguntar sobre este producto</Text>
-        </View>
-        <MaterialCommunityIcons name="chevron-right" size={20} color="#94a3b8" />
-      </TouchableOpacity>
+      <Animated.View entering={FadeInDown.delay(index * 80).duration(500)}>
+        <TouchableOpacity
+          style={[styles.roomCard, { borderLeftColor: colorPack.text }]}
+          activeOpacity={0.8}
+          onPress={() => router.push({
+            pathname: '/(app)/product/[roomId]',
+            params: { roomId: item.id, name: item.name }
+          })}
+        >
+          <View style={[styles.roomIcon, { backgroundColor: colorPack.iconBg }]}>
+            <Text style={[styles.roomIconText, { color: colorPack.text }]}>#</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.roomName}>{item.name}</Text>
+            <Text style={styles.roomMeta}>Toca para preguntar sobre este producto</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#94a3b8" />
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -105,13 +108,15 @@ export default function ClientHome() {
       {menuOpen && (
         <View style={StyleSheet.absoluteFill}>
           {/* Overlay background */}
-          <TouchableOpacity
-            style={styles.drawerOverlay}
-            activeOpacity={1}
-            onPress={() => setMenuOpen(false)}
-          />
+          <Animated.View entering={FadeIn.duration(250)} style={StyleSheet.absoluteFillObject}>
+            <TouchableOpacity
+              style={styles.drawerOverlay}
+              activeOpacity={1}
+              onPress={() => setMenuOpen(false)}
+            />
+          </Animated.View>
           {/* Drawer Content */}
-          <View style={styles.drawerContainer}>
+          <Animated.View entering={SlideInLeft.duration(300)} style={styles.drawerContainer}>
             {/* Header */}
             <View style={styles.drawerHeader}>
               <TouchableOpacity onPress={() => setMenuOpen(false)} style={styles.closeBtn}>
@@ -156,7 +161,7 @@ export default function ClientHome() {
                 <Text style={styles.drawerLogoutText}>Cerrar sesión</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       )}
     </View>

@@ -1,5 +1,18 @@
 # Propuesta de Diseño UX/UI: "Aura Chat" (React Native / Expo)
 
+### Pantalla Login: Login Premium (AETHERA Style)
+*   **Contenedor Principal:** Eliminar tarjetas tipo "caja fuerte" oscuras en el centro. El formulario debe flotar directamente sobre el fondo oscuro (`bg-[#0B0F19]`) para dar sensación de amplitud.
+*   **Fondo (Auras):** Usar luces de fondo (BlurViews absolutos o vistas con opacity y colores de Tailwind como `bg-indigo-600/20` con blur alto) para generar profundidad.
+*   **Logo/Icono Superior:** Reemplazar el texto simple por un ícono abstracto (ej. destello o diamante) dentro de un `<BlurView>` pequeño cuadrado con esquinas muy redondeadas. Título "AETHERA" con espaciado amplio (`tracking-widest`).
+*   **Inputs (Estilo Cristal):** 
+    *   No usar cajas sólidas. Usar contenedores con fondo `rgba(255, 255, 255, 0.03)` y borde `rgba(255, 255, 255, 0.08)`.
+    *   Incluir un icono a la izquierda de cada input (ej. sobre y candado) usando `@expo/vector-icons` en color `slate-400`.
+    *   Almacenar el estado de "focus". Cuando el input esté activo, el borde debe cambiar a un color índigo tenue (`border-indigo-500/50`).
+*   **Botón "INGRESAR":**
+    *   Usar un componente `LinearGradient` (de `expo-linear-gradient`) con colores índigo a azul (ej. `#6366f1` a `#4f46e5`).
+    *   Estilizar con sombra suave del mismo color para simular brillo (`shadowColor: '#6366f1'`).
+*   **Animaciones:** Los inputs y el botón deben aparecer en cascada desde abajo (SlideUp y FadeIn) usando `react-native-reanimated`.
+
 ## 1. Concepto Visual: Dark Glassmorphism
 El diseño debe transmitir una sensación premium, inmersiva y moderna. Usaremos un fondo oscuro profundo y elementos superpuestos que simulen cristal esmerilado (Glassmorphism), iluminados por sutiles "auras" de colores en el fondo.
 

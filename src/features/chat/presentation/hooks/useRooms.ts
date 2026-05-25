@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Room } from '../../domain/entities/Room';
-import { supabase } from '@shared/infrastructure/supabase/client';
+import { chatRepository } from '../../../../di/container';
 
 export function useRooms() {
   const [rooms, setRooms]       = useState<Room[]>([]);
@@ -9,17 +9,13 @@ export function useRooms() {
 
   const loadRooms = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const { data, error } = await supabase
-        .from('rooms')
-        .select('id, name, created_by, created_at')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setRooms((data ?? []).map((r: any) => ({
-        id: r.id, name: r.name, createdBy: r.created_by, createdAt: r.created_at,
-      })));
+      //const { data } = await supabase.from('rooms').select(...)
+      const data = await chatRepository.getRooms();
+      setRooms(data);
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || 'Error al cargar las salas');
     } finally {
       setLoading(false);
     }

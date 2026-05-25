@@ -144,6 +144,8 @@ export default function SellerDashboard() {
           keyExtractor={(r) => r.id}
           renderItem={({ item, index }) => renderRoom({ item, index })}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+          refreshing={isLoading}
+          onRefresh={loadRooms}
           ListEmptyComponent={
             <Text style={styles.emptyText}>Aún no tienes salas. ¡Crea una!</Text>
           }

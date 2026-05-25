@@ -96,6 +96,8 @@ export default function ClientHome() {
           keyExtractor={(r) => r.id}
           renderItem={({ item, index }) => renderRoom({ item, index })}
           contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+          refreshing={isLoading}
+          onRefresh={loadRooms}
           ListEmptyComponent={
             <Text style={styles.emptyText}>
               Aún no hay salas disponibles.{"\n"}Vuelve pronto.

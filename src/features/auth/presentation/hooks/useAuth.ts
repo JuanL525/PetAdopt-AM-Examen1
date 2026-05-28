@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { loginUseCase, registerUseCase, logoutUseCase } from '../../../../di/container';
+import { loginUseCase, registerUseCase, logoutUseCase, loginWithGoogleUseCase } from '../../../../di/container';
 import { CreateUserDTO, LoginDTO } from '../../domain/entities/User';
 
 export function useAuth() {
@@ -36,6 +36,21 @@ export function useAuth() {
     }
   }, [setUser, setLoading, setError]);
 
+  const loginWithGoogle = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogleUseCase.execute();
+      // NO llamamos a setUser() ni a setLoading(false) aquí en caso de éxito,
+      // ya que el flujo reactivo de onAuthStateChange en _layout.tsx se encargará
+      // de inyectar el usuario y apagar el estado de carga al completarse el login.
+    } catch (e: any) {
+      setError(e.message ?? 'Error al iniciar sesión con Google');
+      setLoading(false);
+      throw e;
+    }
+  }, [setLoading, setError]);
+
   const logout = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -50,5 +65,5 @@ export function useAuth() {
     }
   }, [reset, setLoading, setError]);
 
-  return { user, isLoading, error, login, register, logout };
+  return { user, isLoading, error, login, register, loginWithGoogle, logout };
 }

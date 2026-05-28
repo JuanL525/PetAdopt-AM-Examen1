@@ -72,6 +72,10 @@ export class AppwriteAuthRepository implements IAuthRepository {
     }
   }
 
+  async loginWithGoogle(): Promise<User> {
+    throw new AppError('AUTH_GOOGLE_FAILED', 'Google login not implemented for Appwrite');
+  }
+
   private mapUser(user: any): User {
     const prefs = user.prefs || {};
     const role = isUserRole(prefs.role) ? prefs.role : 'client';

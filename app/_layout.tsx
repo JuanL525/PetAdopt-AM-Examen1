@@ -1,16 +1,31 @@
 // app/_layout.tsx
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAuthStore } from '@features/auth/presentation/store/authStore';
-import { supabase } from '@shared/infrastructure/supabase/client';
-import { Slot, useRootNavigationState, useRouter, useSegments } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { getExpoNotifications, registerForNotificationsAsync, sendMessageNotification } from '../src/services/notificationService';
-import { authRepository } from '../src/di/container';
-import { AppwriteAuthRepository } from '@features/auth/infrastructure/repositories/AppwriteAuthRepository';
-import { Client as AppwriteClient } from 'react-native-appwrite';
+import { AppwriteAuthRepository } from "@features/auth/infrastructure/repositories/AppwriteAuthRepository";
+import { useAuthStore } from "@features/auth/presentation/store/authStore";
+import { supabase } from "@shared/infrastructure/supabase/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Linking from "expo-linking";
+import {
+  Slot,
+  useRootNavigationState,
+  useRouter,
+  useSegments,
+} from "expo-router";
+import { useEffect, useRef } from "react";
+import { Client as AppwriteClient } from "react-native-appwrite";
+import { authRepository } from "../src/di/container";
+import {
+  getExpoNotifications,
+  registerForNotificationsAsync,
+  sendMessageNotification,
+} from "../src/services/notificationService";
 
 // Polyfill de localStorage para prevenir error interno en react-native-appwrite Realtime
-const globalObj = typeof globalThis !== 'undefined' ? globalThis : (typeof global !== 'undefined' ? global : {} as any);
+const globalObj =
+  typeof globalThis !== "undefined"
+    ? globalThis
+    : typeof global !== "undefined"
+      ? global
+      : ({} as any);
 if (!globalObj.localStorage) {
   globalObj.localStorage = {
     _data: {} as Record<string, string>,
@@ -25,54 +40,204 @@ if (!globalObj.localStorage) {
     },
     clear() {
       this._data = {};
-    }
+    },
   };
 }
 
-
-
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } }
+  defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
 
 const appwriteClient = new AppwriteClient()
-  .setEndpoint(process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT || '')
-  .setProject(process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID || '')
-  .setPlatform('host.exp.exponent');
+  .setEndpoint(process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT || "")
+  .setProject(process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID || "")
+  .setPlatform("host.exp.exponent");
 
 export default function RootLayout() {
-  const { user, setUser } = useAuthStore();
+  const { user, isLoading, setUser, setLoading } = useAuthStore();
   const segments = useSegments() as any;
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
-    authRepository.getCurrentUser().then(setUser);
+    if (authRepository instanceof AppwriteAuthRepository) {
+      setLoading(true);
+      authRepository
+        .getCurrentUser()
+        .then(setUser)
+        .finally(() => setLoading(false));
+    } else {
+      // Para Supabase, el listener onAuthStateChange maneja todo el estado reactivamente
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log(
+          `[_layout] onAuthStateChange event: ${event}, session: ${!!session}`
+        );
 
-    if (!(authRepository instanceof AppwriteAuthRepository)) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (_event, session) => {
+        // Callback síncrono para no bloquear el Deep Link
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
           if (session) {
-            const user = await authRepository.getCurrentUser();
-            setUser(user);
+            setLoading(true);
+            // Ejecutamos la tarea pesada en segundo plano
+            syncUserProfile(session).finally(() => setLoading(false));
           } else {
             setUser(null);
+            setLoading(false);
           }
+        } else if (event === "SIGNED_OUT") {
+          setUser(null);
+          setLoading(false);
         }
-      );
+      });
+
+      // Tarea pesada aislada con try/catch y fallback
+      const syncUserProfile = async (session: any) => {
+        try {
+          // 1. Asegurar que el perfil existe en la base de datos (best-effort)
+          try {
+            const metadata = session.user.user_metadata || {};
+            const username =
+              metadata.full_name ||
+              metadata.name ||
+              session.user.email?.split("@")[0] ||
+              "Usuario";
+
+            console.log(
+              `[_layout] Reactively upserting/checking profile for: ${session.user.id}`
+            );
+            await supabase.from("profiles").upsert(
+              {
+                id: session.user.id,
+                username,
+                role: "client", // rol por defecto
+              },
+              { onConflict: "id" }
+            );
+            console.log("[_layout] Profile upsert finished successfully.");
+          } catch (profileErr: any) {
+            console.warn(
+              "[_layout] Profile upsert warning (non-blocking):",
+              profileErr.message || profileErr
+            );
+          }
+
+          // 2. Obtener perfil completo
+          const user = await authRepository.getCurrentUser();
+          console.log(
+            `[_layout] User sync successful: ${user?.username} (${user?.role})`
+          );
+          setUser(user);
+        } catch (err: any) {
+          // 3. ¡EL SALVAVIDAS! Si la BD falla o hace timeout, entramos nosotros
+          console.error(
+            "[_layout] Error syncing user session, using fallback:",
+            err.message || err
+          );
+          const metadata = session?.user?.user_metadata || {};
+          const email = session?.user?.email || "";
+          const username =
+            metadata.full_name ||
+            metadata.name ||
+            email.split("@")[0] ||
+            "Usuario";
+            
+          const fallbackUser = {
+            id: session?.user?.id || "",
+            username,
+            role: "client",
+            avatarUrl: metadata.avatarUrl || null,
+            createdAt: session?.user?.created_at || new Date().toISOString(),
+            email,
+          };
+          
+          setUser(fallbackUser as any);
+        }
+      };
+
       return () => subscription.unsubscribe();
     }
   }, []);
 
+  // Listener de Deep Linking para intercambiar el código de Google OAuth
   useEffect(() => {
-    if (!rootNavigationState?.key) return;
-    const inAuth = segments[0] === '(auth)';
+    let subscription: any;
+
+    const handleUrl = async (url: string) => {
+      console.log(`[_layout] Deep link received for OAuth: ${url}`);
+      if (url.includes("code=")) {
+        const parsedUrl = Linking.parse(url);
+        let code = parsedUrl.queryParams?.code as string | undefined;
+
+        if (!code) {
+          const match = url.match(/[?&]code=([^&]+)/);
+          if (match) code = match[1];
+        }
+
+        if (code) {
+          console.log(
+            `[_layout] OAuth code found in URL: ${code}. Exchanging for session...`
+          );
+          try {
+            const { data, error } =
+              await supabase.auth.exchangeCodeForSession(code);
+            if (error) throw error;
+            console.log(
+              `[_layout] OAuth code exchange successful! User ID: ${data.user?.id}`
+            );
+          } catch (err: any) {
+            console.error(
+              "[_layout] Error exchanging OAuth code:",
+              err.message || err
+            );
+          }
+        }
+      }
+    };
+
+    // Escuchar eventos de URL (cuando la app está en segundo plano o es reanudada)
+    subscription = Linking.addEventListener("url", (event) => {
+      handleUrl(event.url);
+    });
+
+    // Verificar si la app fue lanzada por una URL (cold start)
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleUrl(url);
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const navReady = !!rootNavigationState?.key;
+    const inAuth = segments[0] === "(auth)";
+
+    console.log(
+      `[AuthGuard] Check: user=${user ? user.username : "null"}, isLoading=${isLoading}, segments=${JSON.stringify(segments)}, navReady=${navReady}, inAuth=${inAuth}`
+    );
+
+    if (!navReady || isLoading) return;
+
     const id = setTimeout(() => {
-      if (!user && !inAuth) router.replace('/(auth)/login');
-      if (user && inAuth) router.replace('/(app)');
+      if (user && inAuth) {
+        console.log(
+          "[AuthGuard] Authenticated user on auth screen. Redirecting to Dashboard /(app)..."
+        );
+        router.replace("/(app)");
+      } else if (!user && !inAuth) {
+        console.log(
+          "[AuthGuard] Unauthenticated user on private screen. Redirecting to Login /(auth)/login..."
+        );
+        router.replace("/(auth)/login");
+      }
     }, 0);
+
     return () => clearTimeout(id);
-  }, [user, segments, rootNavigationState?.key]);
+  }, [user, isLoading, segments, rootNavigationState?.key]);
 
   const notificationSubRef = useRef<{ remove(): void } | null>(null);
 
@@ -80,13 +245,16 @@ export default function RootLayout() {
     registerForNotificationsAsync();
     getExpoNotifications().then((Notifications) => {
       if (!Notifications) return;
-      notificationSubRef.current = Notifications.addNotificationResponseReceivedListener((response: any) => {
-        if (!rootNavigationState?.key) return;
-        const roomId = response.notification.request.content.data?.roomId;
-        if (roomId) {
-          router.push(`/chat/${roomId}`);
-        }
-      });
+      notificationSubRef.current =
+        Notifications.addNotificationResponseReceivedListener(
+          (response: any) => {
+            if (!rootNavigationState?.key) return;
+            const roomId = response.notification.request.content.data?.roomId;
+            if (roomId) {
+              router.push(`/chat/${roomId}`);
+            }
+          }
+        );
     });
     return () => {
       notificationSubRef.current?.remove();
@@ -102,19 +270,27 @@ export default function RootLayout() {
       const unsubscribe = appwriteClient.subscribe(
         `databases.${DB_ID}.collections.messages.documents`,
         async (response) => {
-          if (response.events.includes('databases.*.collections.*.documents.*.create')) {
+          if (
+            response.events.includes(
+              "databases.*.collections.*.documents.*.create"
+            )
+          ) {
             const payload = response.payload as any;
             if (payload.user_id === user.id) return;
 
-            const inThisChat = 
-              segments[0] === '(app)' && 
-              segments[1] === 'chat' && 
+            const inThisChat =
+              segments[0] === "(app)" &&
+              segments[1] === "chat" &&
               segments[2] === payload.room_id;
-              
+
             if (inThisChat) return;
 
-            const senderName = payload.username ?? 'Otro Usuario';
-            await sendMessageNotification(senderName, payload.room_id, payload.content);
+            const senderName = payload.username ?? "Otro Usuario";
+            await sendMessageNotification(
+              senderName,
+              payload.room_id,
+              payload.content
+            );
           }
         }
       );
@@ -123,37 +299,44 @@ export default function RootLayout() {
       };
     } else {
       const channel = supabase
-        .channel('global-chat-notifications')
+        .channel("global-chat-notifications")
         .on(
-          'postgres_changes',
+          "postgres_changes",
           {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'messages',
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
           },
           async (payload) => {
             if (!payload.new || payload.new.user_id === user.id) return;
 
             // Evitar notificar si el usuario ya está viendo activamente este chat
-            const inThisChat = 
-              segments[0] === '(app)' && 
-              segments[1] === 'chat' && 
+            const inThisChat =
+              segments[0] === "(app)" &&
+              segments[1] === "chat" &&
               segments[2] === payload.new.room_id;
-              
+
             if (inThisChat) return;
 
             try {
               // Consultar el perfil del remitente para mostrar su nombre de usuario
               const { data: senderData } = await supabase
-                .from('profiles')
-                .select('username')
-                .eq('id', payload.new.user_id)
+                .from("profiles")
+                .select("username")
+                .eq("id", payload.new.user_id)
                 .single();
 
-              const senderName = senderData?.username ?? 'Otro Usuario';
-              await sendMessageNotification(senderName, payload.new.room_id, payload.new.content);
+              const senderName = senderData?.username ?? "Otro Usuario";
+              await sendMessageNotification(
+                senderName,
+                payload.new.room_id,
+                payload.new.content
+              );
             } catch (err) {
-              console.warn('Error fetching sender profile for notification:', err);
+              console.warn(
+                "Error fetching sender profile for notification:",
+                err
+              );
             }
           }
         )

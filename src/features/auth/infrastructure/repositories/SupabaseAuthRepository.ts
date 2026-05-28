@@ -1,7 +1,19 @@
-import { supabase } from '@shared/infrastructure/supabase/client';
+import { supabase, HybridStorageAdapter } from '@shared/infrastructure/supabase/client';
 import { IAuthRepository } from '../../domain/repositories/IAuthRepository';
 import { User, CreateUserDTO, LoginDTO, isUserRole } from '../../domain/entities/User';
 import { AppError } from '@shared/domain/errors/AppError';
+import * as Linking from 'expo-linking';
+import * as SecureStore from 'expo-secure-store';
+
+// Referencia del proyecto Supabase, extraída de la URL
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const PROJECT_REF = SUPABASE_URL.replace('https://', '').split('.')[0];
+
+// El cliente de Supabase por defecto usa 'sb-auth-token' como storageKey
+// y le añade '-code-verifier' para almacenar el PKCE code_verifier.
+const CODE_VERIFIER_KEY = 'sb-auth-token-code-verifier';
+const FALLBACK_CODE_VERIFIER_KEY = `sb-${PROJECT_REF}-auth-token-code-verifier`;
 
 export class SupabaseAuthRepository implements IAuthRepository {
   async login(dto: LoginDTO): Promise<User> {
@@ -61,9 +73,22 @@ export class SupabaseAuthRepository implements IAuthRepository {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    return this.fetchProfile(user.id, user.email ?? '', user);
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.warn('[Auth] Error getting current user:', error.message);
+        if (error.message?.includes('Refresh token is not valid') || error.status === 400 || error.status === 401) {
+          console.log('[Auth] Invalid session detected. Clearing local session...');
+          await supabase.auth.signOut().catch(() => {});
+        }
+        return null;
+      }
+      if (!user) return null;
+      return this.fetchProfile(user.id, user.email ?? '', user);
+    } catch (e) {
+      console.error('[Auth] Exception in getCurrentUser:', e);
+      return null;
+    }
   }
 
   private async fetchProfile(userId: string, email: string, authUser?: any): Promise<User> {
@@ -115,5 +140,43 @@ export class SupabaseAuthRepository implements IAuthRepository {
       }
       throw new AppError('PROFILE_FETCH_FAILED', e.message || 'Error al obtener perfil');
     }
+  }
+
+  async loginWithGoogle(): Promise<User> {
+    const redirectUrl = Linking.createURL('/');
+    console.log('[Google Login] Generated redirectUrl:', redirectUrl);
+
+    // 1. Obtener la URL de autenticación de Supabase (con PKCE)
+    console.log('[Google Login] Calling signInWithOAuth...');
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+        skipBrowserRedirect: true,
+        queryParams: {
+          prompt: 'select_account',
+          access_type: 'offline',
+        },
+      },
+    });
+
+    if (error) {
+      console.error('[Google Login] signInWithOAuth Error:', error);
+      throw new AppError('AUTH_GOOGLE_FAILED', error.message);
+    }
+
+    if (!data?.url) {
+      throw new AppError('AUTH_GOOGLE_FAILED', 'No se pudo generar la URL de autenticación');
+    }
+
+    console.log('[Google Login] OAuth URL generated:', data.url);
+
+    // 2. Abrir el navegador del sistema
+    console.log('[Google Login] Opening system browser...');
+    await Linking.openURL(data.url);
+
+    // 3. Fire-and-forget: resolver inmediatamente
+    console.log('[Google Login] Fire-and-forget triggered browser redirect.');
+    return {} as any;
   }
 }

@@ -1,5 +1,5 @@
 import { useAuth } from "@features/auth/presentation/hooks/useAuth";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { useState, useEffect } from "react";
 import {
   StyleSheet,
@@ -289,7 +289,20 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [focus, setFocus] = useState<"email" | "password" | null>(null);
-  const { login, isLoading, error } = useAuth();
+  const { login, loginWithGoogle, isLoading, error } = useAuth();
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const router = useRouter();
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await loginWithGoogle();
+    } catch (e: any) {
+      console.error('[LoginScreen] Google login failed:', e?.message || e);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -406,8 +419,27 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </Animated.View>
 
+        {/* Botón Google */}
+        <Animated.View entering={FadeInDown.delay(550).duration(600)}>
+          <TouchableOpacity
+            style={styles.googleButtonWrapper}
+            onPress={handleGoogleLogin}
+            disabled={isLoading || isGoogleLoading}
+            activeOpacity={0.8}
+          >
+            <View style={styles.googleButtonContent}>
+              <MaterialCommunityIcons name="google" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+              {isGoogleLoading ? (
+                <Text style={styles.googleButtonText}>CONECTANDO CON GOOGLE...</Text>
+              ) : (
+                <Text style={styles.googleButtonText}>INICIAR CON GOOGLE</Text>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
         {/* Registro Link */}
-        <Animated.View entering={FadeInDown.delay(600).duration(600)}>
+        <Animated.View entering={FadeInDown.delay(650).duration(600)}>
           <Link href="/(auth)/register" style={styles.link}>
             ¿No tienes cuenta? <Text style={styles.linkAccent}>REGÍSTRATE</Text>
           </Link>
@@ -671,6 +703,27 @@ const styles = StyleSheet.create({
     color: '#ff003c',
     fontSize: 13,
     fontWeight: '600',
+  },
+  googleButtonWrapper: {
+    marginTop: 14,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1.2,
+    borderRadius: 14,
+    height: 56,
+    overflow: 'hidden',
+  },
+  googleButtonContent: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  googleButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 1.5,
   },
   link: {
     marginTop: 28,

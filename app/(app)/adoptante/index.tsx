@@ -1,101 +1,261 @@
-import React, { useState } from 'react';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { getUserInitials } from "@features/auth/domain/entities/User";
+import { useAuth } from "@features/auth/presentation/hooks/useAuth";
+import { useAuthStore } from "@features/auth/presentation/store/authStore";
+import { Pet, PetStatus, formatPetAge } from "@features/pets/domain/entities/Pet";
+import { usePets } from "@features/pets/presentation/hooks/usePets";
+import { AdoptionStatus } from "@features/adoptions/domain/entities/AdoptionRequest";
+import { useAdoptions } from "@features/adoptions/presentation/hooks/useAdoptions";
 import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, StatusBar, TextInput, Image,
-  ActivityIndicator, RefreshControl, ScrollView,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown, FadeIn, SlideInLeft, ZoomIn } from 'react-native-reanimated';
-import { useAuthStore } from '@features/auth/presentation/store/authStore';
-import { useAuth } from '@features/auth/presentation/hooks/useAuth';
-import { getUserInitials } from '@features/auth/domain/entities/User';
-import { usePets } from '@features/pets/presentation/hooks/usePets';
-import { Pet, PetStatus } from '@features/pets/domain/entities/Pet';
+  fontSize,
+  fontWeight,
+  PetBadge,
+  PetDrawer,
+  radius,
+  shadow,
+  space,
+  useColors,
+  useThemeStore,
+} from "@shared/design";
+import React, { useState } from "react";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { AnimatePresence, MotiView } from "moti";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { LottieAnimation } from "../../../components/animations/LottieAnimation";
 
-const AuraBackground = () => (
-  <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-    <View style={styles.aura1} />
-    <View style={styles.aura2} />
-    <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
-  </View>
-);
+const loadingAnimation = require("../../../assets/animations/loading-cat.json");
+const emptyAnimation   = require("../../../assets/animations/empty-dog.json");
 
-const SIZES: Record<string, string> = { small: 'Pequeño', medium: 'Mediano', large: 'Grande' };
-const STATUS_COLOR: Record<PetStatus, string> = {
-  available: '#34d399',
-  pending: '#fbbf24',
-  adopted: '#94a3b8',
+const SIZES: Record<string, string> = {
+  small: "Pequeño",
+  medium: "Mediano",
+  large: "Grande",
 };
-const STATUS_LABEL: Record<PetStatus, string> = {
-  available: 'Disponible',
-  pending: 'En proceso',
-  adopted: 'Adoptado',
+
+const STATUS: Record<
+  PetStatus,
+  { label: string; variant: "success" | "warning" | "neutral" }
+> = {
+  available: { label: "Disponible", variant: "success" },
+  pending:   { label: "En proceso", variant: "warning" },
+  adopted:   { label: "Adoptado",   variant: "neutral" },
 };
 
-const FILTERS: { key: PetStatus | 'all'; label: string }[] = [
-  { key: 'all', label: 'Todos' },
-  { key: 'available', label: 'Disponibles' },
-  { key: 'pending', label: 'En proceso' },
-  { key: 'adopted', label: 'Adoptados' },
-];
+// Badge según el estado de MI solicitud (perspectiva del adoptante)
+const MY_REQUEST_BADGE: Record<
+  AdoptionStatus,
+  { label: string; variant: "success" | "warning" | "error" }
+> = {
+  pending:  { label: "Solicitada",  variant: "warning" },
+  approved: { label: "¡Adoptado!",  variant: "success" },
+  rejected: { label: "Rechazada",   variant: "error" },
+};
 
-const drawerMenuItems = [
-  { icon: 'heart-multiple', label: 'Mis Solicitudes', route: '/(app)/adoptions', color: '#f87171' },
-  { icon: 'map-marker-radius', label: 'Refugios Cercanos', route: '/(app)/map', color: '#60a5fa' },
-];
-
-function PetCard({ pet, index }: { pet: Pet; index: number }) {
+function PetCard({
+  pet,
+  index,
+  myRequestStatus,
+}: {
+  pet: Pet;
+  index: number;
+  myRequestStatus?: AdoptionStatus;
+}) {
   const router = useRouter();
-  return (
-    <Animated.View entering={FadeInDown.delay(index * 80).duration(450)} style={styles.cardWrapper}>
-      <TouchableOpacity
-        style={styles.petCard}
-        onPress={() => router.push(`/(app)/pets/${pet.id}` as any)}
-        activeOpacity={0.85}
-      >
-        {/* Photo */}
-        <View style={styles.photoContainer}>
-          {pet.photoUrl ? (
-            <Image source={{ uri: pet.photoUrl }} style={styles.petPhoto} resizeMode="cover" />
-          ) : (
-            <View style={styles.photoPlaceholder}>
-              <MaterialCommunityIcons name="paw" size={36} color="rgba(255,255,255,0.15)" />
-            </View>
-          )}
-          {/* Status badge */}
-          <View style={[styles.statusBadge, { backgroundColor: STATUS_COLOR[pet.status] + '22', borderColor: STATUS_COLOR[pet.status] + '66' }]}>
-            <View style={[styles.statusDot, { backgroundColor: STATUS_COLOR[pet.status] }]} />
-            <Text style={[styles.statusText, { color: STATUS_COLOR[pet.status] }]}>
-              {STATUS_LABEL[pet.status]}
-            </Text>
-          </View>
-        </View>
+  const s = myRequestStatus ? MY_REQUEST_BADGE[myRequestStatus] : STATUS[pet.status];
+  const c = useColors();
+  const isDark = useThemeStore((st) => st.isDark);
 
-        {/* Info */}
-        <View style={styles.petInfo}>
-          <Text style={styles.petName} numberOfLines={1}>{pet.name}</Text>
-          <Text style={styles.petBreed} numberOfLines={1}>{pet.breed}</Text>
-          <View style={styles.petMeta}>
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons name="calendar-outline" size={11} color="#94a3b8" />
-              <Text style={styles.metaText}>{pet.age} año{pet.age !== 1 ? 's' : ''}</Text>
+  return (
+    <MotiView
+      from={{ opacity: 0, translateY: 18, scale: 0.95 }}
+      animate={{ opacity: 1, translateY: 0, scale: 1 }}
+      transition={{ type: "spring", damping: 18, stiffness: 200, delay: index * 60 }}
+      style={{ flex: 1, padding: space[2] }}
+    >
+      <Pressable onPress={() => router.push(`/(app)/pets/${pet.id}` as any)}>
+        {({ pressed }) => (
+          <MotiView
+            animate={{ scale: pressed ? 0.97 : 1 }}
+            transition={{ type: "timing", duration: 100 }}
+            style={{
+              backgroundColor: c.bgSurface,
+              borderRadius: radius.xl,
+              overflow: "hidden",
+              borderWidth: 1.5,
+              borderColor: pressed ? c.primary + "55" : c.border,
+              ...shadow.md,
+            }}
+          >
+            {/* Photo zone */}
+            <View style={{ width: "100%", height: 158, position: "relative" }}>
+              {pet.photoUrl ? (
+                <Image
+                  source={{ uri: pet.photoUrl }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={{
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: isDark ? c.primaryLight : "#FFF1EF",
+                  }}
+                >
+                  <Text style={{ fontSize: 44 }}>🐾</Text>
+                  <Text
+                    style={{
+                      fontSize: fontSize.base,
+                      fontWeight: fontWeight.bold,
+                      color: c.primary,
+                      marginTop: space[2],
+                    }}
+                    numberOfLines={1}
+                  >
+                    {pet.name}
+                  </Text>
+                  {pet.breed ? (
+                    <Text style={{ fontSize: 11, color: c.textMuted, marginTop: 2 }} numberOfLines={1}>
+                      {pet.breed}
+                    </Text>
+                  ) : null}
+                </View>
+              )}
+
+              {/* Bottom gradient overlay — only when there's a photo */}
+              {pet.photoUrl && (
+                <>
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 0, left: 0, right: 0,
+                      height: 72,
+                      backgroundColor: "rgba(0,0,0,0.52)",
+                    }}
+                  />
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: space[2], left: space[2], right: space[8],
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: fontWeight.bold,
+                        fontSize: fontSize.base,
+                        textShadowColor: "rgba(0,0,0,0.4)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {pet.name}
+                    </Text>
+                    {pet.breed ? (
+                      <Text
+                        style={{ color: "rgba(255,255,255,0.78)", fontSize: 10, marginTop: 1 }}
+                        numberOfLines={1}
+                      >
+                        {pet.breed}
+                      </Text>
+                    ) : null}
+                  </View>
+                </>
+              )}
+
+              {/* Status badge — top left */}
+              <View style={{ position: "absolute", top: space[2], left: space[2] }}>
+                <PetBadge label={s.label} variant={s.variant} size="sm" />
+              </View>
             </View>
-            <View style={styles.metaChip}>
-              <MaterialCommunityIcons name="resize" size={11} color="#94a3b8" />
-              <Text style={styles.metaText}>{SIZES[pet.size]}</Text>
+
+            {/* Info strip */}
+            <View
+              style={{
+                paddingHorizontal: space[3],
+                paddingVertical: space[2],
+                flexDirection: "row",
+                alignItems: "center",
+                gap: space[2],
+                flexWrap: "wrap",
+                borderTopWidth: 1,
+                borderTopColor: c.border,
+              }}
+            >
+              {/* Age — coral */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                  backgroundColor: isDark ? c.primaryLight : "#FFE8E4",
+                  borderRadius: radius.sm,
+                  paddingHorizontal: space[2],
+                  paddingVertical: 3,
+                }}
+              >
+                <MaterialCommunityIcons name="calendar-outline" size={10} color={c.primary} />
+                <Text style={{ fontSize: 10, color: c.primary, fontWeight: fontWeight.semibold }}>
+                  {formatPetAge(pet.age)}
+                </Text>
+              </View>
+
+              {/* Size — teal */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 3,
+                  backgroundColor: isDark ? c.secondaryLight : "#D0F2EC",
+                  borderRadius: radius.sm,
+                  paddingHorizontal: space[2],
+                  paddingVertical: 3,
+                }}
+              >
+                <MaterialCommunityIcons name="resize" size={10} color={c.secondary} />
+                <Text style={{ fontSize: 10, color: c.secondary, fontWeight: fontWeight.semibold }}>
+                  {SIZES[pet.size]}
+                </Text>
+              </View>
+
+              {/* Shelter */}
+              {pet.shelterName && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 3,
+                    flex: 1,
+                    minWidth: "100%",
+                  }}
+                >
+                  <MaterialCommunityIcons name="home-heart" size={10} color={c.textMuted} />
+                  <Text
+                    style={{ fontSize: 10, color: c.textMuted, flex: 1 }}
+                    numberOfLines={1}
+                  >
+                    {pet.shelterName}
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
-          {pet.shelterName && (
-            <View style={styles.shelterRow}>
-              <MaterialCommunityIcons name="home-heart" size={12} color="#60a5fa" />
-              <Text style={styles.shelterName} numberOfLines={1}>{pet.shelterName}</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+          </MotiView>
+        )}
+      </Pressable>
+    </MotiView>
   );
 }
 
@@ -103,83 +263,337 @@ export default function AdoptanteHome() {
   const user = useAuthStore((s) => s.user);
   const { logout } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<PetStatus | 'all'>('available');
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
 
+  const drawerMenuItems = [
+    { icon: "heart-multiple",   label: "Mis Solicitudes",  route: "/(app)/adoptions", color: c.primary },
+    { icon: "map-marker-radius",label: "Refugios Cercanos", route: "/(app)/map",       color: c.secondary },
+    { icon: "robot",            label: "Asistente IA",      route: "/(app)/ai-chat",   color: "#8B5CF6" },
+  ];
+
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "available" | "pending" | "adopted">("available");
   const { pets, isLoading: loading, loadPets: refresh } = usePets();
+  const { requests, loadRequests } = useAdoptions();
 
-  React.useEffect(() => { refresh(); }, []);
+  React.useEffect(() => {
+    refresh();
+    loadRequests();
+  }, []);
+
+  const handleRefresh = React.useCallback(() => {
+    refresh();
+    loadRequests();
+  }, [refresh, loadRequests]);
+
+  // Mapa petId -> estado de MI solicitud más reciente.
+  // requests viene ordenado por fecha desc, así que la primera ocurrencia gana.
+  const myRequestByPet = React.useMemo(() => {
+    const map: Record<string, AdoptionStatus> = {};
+    for (const r of requests) {
+      if (!(r.petId in map)) map[r.petId] = r.status;
+    }
+    return map;
+  }, [requests]);
+
+  // Una mascota está "disponible para mí" si su estado es available
+  // y yo no la he adoptado ya (solicitud aprobada).
+  const isAvailableForMe = (p: Pet) =>
+    p.status === "available" && myRequestByPet[p.id] !== "approved";
 
   const filtered = pets.filter((p) => {
-    const matchStatus = filter === 'all' || p.status === filter;
+    const myStatus = myRequestByPet[p.id];
+    let matchFilter = true;
+    if (filter === "available") matchFilter = isAvailableForMe(p);
+    else if (filter === "pending") matchFilter = myStatus === "pending";
+    else if (filter === "adopted") matchFilter = myStatus === "approved";
+    // "all" → todas
+
     const q = search.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || p.breed.toLowerCase().includes(q);
-    return matchStatus && matchSearch;
+    const matchSearch =
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.breed.toLowerCase().includes(q);
+    return matchFilter && matchSearch;
   });
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <AuraBackground />
+  // Stats desde la perspectiva del adoptante
+  const availableCount = pets.filter(isAvailableForMe).length;
+  const myPendingCount = requests.filter((r) => r.status === "pending").length;
+  const myAdoptedCount = requests.filter((r) => r.status === "approved").length;
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Hola, {user?.username} 👋</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleText}>🐾 Adoptante</Text>
+  const STATS = [
+    { label: "Disponibles", value: availableCount, color: "#10B981", bg: "#D1FAE5", darkBg: "#052E1C" },
+    { label: "En proceso",  value: myPendingCount, color: "#F59E0B", bg: "#FEF3C7", darkBg: "#1C1206" },
+    { label: "Adoptados",   value: myAdoptedCount, color: c.primary, bg: isDark ? c.primaryLight : "#FFE8E4", darkBg: c.primaryLight },
+  ];
+
+  const FILTER_CHIPS = [
+    { key: "all" as const,       label: "Todos",       icon: "paw",          color: c.primary,  bg: isDark ? c.primaryLight : "#FFE8E4" },
+    { key: "available" as const, label: "Disponibles", icon: "check-circle-outline", color: "#10B981", bg: isDark ? "#052E1C" : "#D1FAE5" },
+    { key: "pending" as const,   label: "En proceso",  icon: "clock-outline",color: "#F59E0B",  bg: isDark ? "#1C1206" : "#FEF3C7" },
+    { key: "adopted" as const,   label: "Adoptados",   icon: "heart",        color: "#9CA3AF",  bg: isDark ? "#1A1A16" : "#F3F4F6" },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style="light" />
+
+      {/* ── Hero Header ─────────────────────────────────────────────── */}
+      <View
+        style={{
+          backgroundColor: c.primary,
+          paddingTop: insets.top,
+          paddingHorizontal: space[5],
+          paddingBottom: space[5],
+          overflow: "hidden",
+        }}
+      >
+        {/* Decorative circles */}
+        <View
+          style={{
+            position: "absolute", right: -36, top: -36,
+            width: 170, height: 170, borderRadius: 85,
+            backgroundColor: "rgba(255,255,255,0.1)",
+          }}
+        />
+        <View
+          style={{
+            position: "absolute", right: 80, bottom: -28,
+            width: 100, height: 100, borderRadius: 50,
+            backgroundColor: "rgba(255,255,255,0.07)",
+          }}
+        />
+        <View
+          style={{
+            position: "absolute", left: -20, bottom: 10,
+            width: 70, height: 70, borderRadius: 35,
+            backgroundColor: "rgba(255,255,255,0.06)",
+          }}
+        />
+
+        {/* Greeting row */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            paddingTop: space[4],
+          }}
+        >
+          <View>
+            <Text style={{ color: "rgba(255,255,255,0.78)", fontSize: fontSize.sm }}>
+              Bienvenido/a de vuelta
+            </Text>
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: fontSize.xl,
+                fontWeight: fontWeight.bold,
+                marginTop: 2,
+              }}
+            >
+              {user?.username}
+            </Text>
+            <View
+              style={{
+                marginTop: space[2],
+                backgroundColor: "rgba(255,255,255,0.22)",
+                borderRadius: radius.full,
+                paddingHorizontal: space[2],
+                paddingVertical: 3,
+                alignSelf: "flex-start",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.18)",
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                🐾 Adoptante
+              </Text>
+            </View>
           </View>
+
+          <Pressable onPress={() => setMenuOpen(true)} hitSlop={8}>
+            <View
+              style={{
+                width: 42, height: 42, borderRadius: radius.full,
+                backgroundColor: "rgba(255,255,255,0.22)",
+                alignItems: "center", justifyContent: "center",
+                borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
+              }}
+            >
+              <MaterialCommunityIcons name="menu" size={22} color="#fff" />
+            </View>
+          </Pressable>
         </View>
-        <TouchableOpacity onPress={() => setMenuOpen(true)} style={styles.menuBtn}>
-          <MaterialCommunityIcons name="menu" size={28} color="#ffffff" />
-        </TouchableOpacity>
+
+        {/* Stats strip */}
+        <View style={{ flexDirection: "row", gap: space[2], marginTop: space[4] }}>
+          {STATS.map((st) => (
+            <View
+              key={st.label}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(255,255,255,0.18)",
+                borderRadius: radius.lg,
+                paddingVertical: space[3],
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.15)",
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: fontSize.lg, fontWeight: fontWeight.bold }}>
+                {st.value}
+              </Text>
+              <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, marginTop: 1 }}>
+                {st.label}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
 
-      {/* Search bar */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <MaterialCommunityIcons name="magnify" size={20} color="#64748b" />
+      {/* ── Search ───────────────────────────────────────────────────── */}
+      <View
+        style={{
+          paddingHorizontal: space[5],
+          paddingTop: space[4],
+          paddingBottom: space[2],
+        }}
+      >
+        <MotiView
+          animate={{ borderColor: search.length > 0 ? c.primary : c.border }}
+          transition={{ type: "timing", duration: 150 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: c.bgSurface,
+            borderRadius: radius.xl,
+            paddingHorizontal: space[4],
+            height: 48,
+            gap: space[2],
+            borderWidth: 1.5,
+            ...shadow.sm,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="magnify"
+            size={20}
+            color={search.length > 0 ? c.primary : c.textMuted}
+          />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar mascota o raza..."
-            placeholderTextColor="#64748b"
+            style={{ flex: 1, fontSize: fontSize.base, color: c.textPrimary }}
+            placeholder="Buscar por nombre o raza..."
+            placeholderTextColor={c.textMuted}
             value={search}
             onChangeText={setSearch}
           />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <MaterialCommunityIcons name="close-circle" size={18} color="#64748b" />
-            </TouchableOpacity>
-          )}
-        </View>
+          <AnimatePresence>
+            {search.length > 0 && (
+              <MotiView
+                from={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: "timing", duration: 150 }}
+              >
+                <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color={c.textMuted} />
+                </Pressable>
+              </MotiView>
+            )}
+          </AnimatePresence>
+        </MotiView>
       </View>
 
-      {/* Filter chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow} style={styles.filtersScroll}>
-        {FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.key}
-            style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
-            onPress={() => setFilter(f.key)}
-          >
-            <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>{f.label}</Text>
-          </TouchableOpacity>
-        ))}
+      {/* ── Colorful filter chips ─────────────────────────────────────── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: space[5],
+          paddingVertical: space[2],
+          gap: space[2],
+        }}
+        style={{ flexGrow: 0 }}
+      >
+        {FILTER_CHIPS.map((f) => {
+          const active = filter === f.key;
+          return (
+            <Pressable key={f.key} onPress={() => setFilter(f.key)}>
+              <MotiView
+                animate={{
+                  backgroundColor: active ? f.color : c.bgSurface,
+                  borderColor: active ? f.color : c.border,
+                }}
+                transition={{ type: "timing", duration: 180 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  paddingHorizontal: space[3],
+                  paddingVertical: space[2],
+                  borderRadius: radius.full,
+                  borderWidth: 1.5,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={f.icon as any}
+                  size={13}
+                  color={active ? "#fff" : f.color}
+                />
+                <Text
+                  style={{
+                    fontSize: fontSize.sm,
+                    fontWeight: fontWeight.semibold,
+                    color: active ? "#fff" : f.color,
+                  }}
+                >
+                  {f.label}
+                </Text>
+              </MotiView>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
-      {/* Pets grid */}
+      {/* ── Grid ─────────────────────────────────────────────────────── */}
       {loading && pets.length === 0 ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#f87171" />
-          <Text style={styles.loadingText}>Buscando mascotas...</Text>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <LottieAnimation source={loadingAnimation} size={140} loop />
         </View>
       ) : filtered.length === 0 ? (
-        <View style={styles.centered}>
-          <MaterialCommunityIcons name="paw-off" size={60} color="rgba(255,255,255,0.08)" />
-          <Text style={styles.emptyTitle}>Sin mascotas</Text>
-          <Text style={styles.emptySubtitle}>
-            {search ? 'Intenta otra búsqueda' : 'Aún no hay mascotas disponibles'}
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            gap: space[3],
+            paddingHorizontal: space[8],
+          }}
+        >
+          <LottieAnimation
+            source={emptyAnimation}
+            size={filter === "all" || filter === "available" ? 180 : 120}
+            loop
+          />
+          <Text style={{ fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: c.textPrimary }}>
+            {filter === "pending"
+              ? "Sin solicitudes en proceso"
+              : filter === "adopted"
+              ? "Aún no has adoptado"
+              : "Sin resultados"}
+          </Text>
+          <Text style={{ fontSize: fontSize.sm, color: c.textMuted, textAlign: "center" }}>
+            {search
+              ? "Prueba otra búsqueda"
+              : filter === "pending"
+              ? "Cuando solicites adoptar una mascota, aparecerá aquí mientras el refugio la revisa."
+              : filter === "adopted"
+              ? "Las mascotas que el refugio te apruebe aparecerán aquí."
+              : "Aún no hay mascotas disponibles"}
           </Text>
         </View>
       ) : (
@@ -187,140 +601,73 @@ export default function AdoptanteHome() {
           data={filtered}
           keyExtractor={(p) => p.id}
           numColumns={2}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={{ padding: space[3], paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={refresh} tintColor="#f87171" />}
-          renderItem={({ item, index }) => <PetCard pet={item} index={index} />}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={handleRefresh} tintColor={c.primary} />
+          }
+          renderItem={({ item, index }) => (
+            <PetCard pet={item} index={index} myRequestStatus={myRequestByPet[item.id]} />
+          )}
         />
       )}
 
-      {/* FABs */}
-      <Animated.View entering={ZoomIn.delay(600).duration(400)} style={styles.fabMap}>
-        <TouchableOpacity onPress={() => router.push('/(app)/map' as any)} style={styles.fabBtn}>
-          <MaterialCommunityIcons name="map-marker-radius" size={24} color="#60a5fa" />
-        </TouchableOpacity>
-      </Animated.View>
+      {/* ── FABs ─────────────────────────────────────────────────────── */}
+      <MotiView
+        from={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", damping: 14, stiffness: 200, delay: 600 }}
+        style={{ position: "absolute", bottom: 100, left: space[5] }}
+      >
+        <Pressable onPress={() => router.push("/(app)/map" as any)}>
+          <View
+            style={{
+              width: 52, height: 52, borderRadius: radius.full,
+              backgroundColor: isDark ? c.secondaryLight : "#D0F2EC",
+              alignItems: "center", justifyContent: "center",
+              borderWidth: 2, borderColor: c.secondary + "55",
+              ...shadow.md,
+            }}
+          >
+            <MaterialCommunityIcons name="map-marker-radius" size={24} color={c.secondary} />
+          </View>
+        </Pressable>
+      </MotiView>
 
-      <Animated.View entering={ZoomIn.delay(700).duration(400)} style={styles.fabAi}>
-        <TouchableOpacity onPress={() => router.push('/(app)/ai-chat' as any)} style={[styles.fabBtn, styles.fabAiBtn]}>
-          <MaterialCommunityIcons name="robot" size={24} color="#c084fc" />
-        </TouchableOpacity>
-      </Animated.View>
+      <MotiView
+        from={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", damping: 14, stiffness: 200, delay: 700 }}
+        style={{ position: "absolute", bottom: insets.bottom + space[6], right: space[5] }}
+      >
+        <Pressable onPress={() => router.push("/(app)/ai-chat" as any)}>
+          <View
+            style={{
+              width: 60, height: 60, borderRadius: radius.full,
+              backgroundColor: isDark ? "#1A1230" : "#EDE9FE",
+              alignItems: "center", justifyContent: "center",
+              borderWidth: 2, borderColor: "#8B5CF6" + "44",
+              ...shadow.lg,
+            }}
+          >
+            <MaterialCommunityIcons name="robot" size={28} color="#8B5CF6" />
+          </View>
+        </Pressable>
+      </MotiView>
 
-      {/* Sidebar Drawer */}
-      {menuOpen && (
-        <View style={StyleSheet.absoluteFill}>
-          <Animated.View entering={FadeIn.duration(250)} style={StyleSheet.absoluteFillObject}>
-            <TouchableOpacity style={styles.drawerOverlay} activeOpacity={1} onPress={() => setMenuOpen(false)} />
-          </Animated.View>
-          <Animated.View entering={SlideInLeft.duration(300)} style={styles.drawerContainer}>
-            <View style={styles.drawerHeader}>
-              <TouchableOpacity onPress={() => setMenuOpen(false)} style={styles.closeBtn}>
-                <MaterialCommunityIcons name="close" size={24} color="#ffffff" />
-              </TouchableOpacity>
-              <View style={styles.drawerProfile}>
-                <View style={styles.drawerAvatar}>
-                  <Text style={styles.drawerAvatarText}>{user ? getUserInitials(user) : '?'}</Text>
-                </View>
-                <Text style={styles.drawerUsername}>{user?.username}</Text>
-                <Text style={styles.drawerEmail}>{user?.email}</Text>
-                <View style={styles.drawerRoleBadge}>
-                  <Text style={styles.drawerRoleText}>🐾 Adoptante</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.drawerMenu}>
-              {drawerMenuItems.map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={styles.drawerMenuItem}
-                  onPress={() => { setMenuOpen(false); router.push(item.route as any); }}
-                >
-                  <MaterialCommunityIcons name={item.icon as any} size={20} color={item.color} />
-                  <Text style={styles.drawerMenuText}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.drawerFooter}>
-              <TouchableOpacity style={styles.drawerLogoutBtn} onPress={() => { setMenuOpen(false); logout(); }}>
-                <MaterialCommunityIcons name="logout" size={20} color="#f87171" />
-                <Text style={styles.drawerLogoutText}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      )}
+      {/* ── Drawer ───────────────────────────────────────────────────── */}
+      <PetDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        username={user?.username}
+        email={user?.email}
+        initials={user ? getUserInitials(user) : "?"}
+        roleLabel="🐾 Adoptante"
+        roleColor={c.primary}
+        menuItems={drawerMenuItems}
+        onNavigate={(route) => router.push(route as any)}
+        onLogout={logout}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  aura1: { position: 'absolute', top: '-25%', left: '-35%', width: 600, height: 600, borderRadius: 300, backgroundColor: 'rgba(79,70,229,0.22)' },
-  aura2: { position: 'absolute', bottom: '5%', right: '-40%', width: 650, height: 650, borderRadius: 325, backgroundColor: 'rgba(248,113,113,0.10)' },
-
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16, backgroundColor: 'rgba(30,41,59,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)' },
-  greeting: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-  roleBadge: { marginTop: 5, backgroundColor: 'rgba(248,113,113,0.15)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(248,113,113,0.3)' },
-  roleText: { color: '#f87171', fontSize: 11, fontWeight: '600' },
-  menuBtn: { padding: 6 },
-
-  searchRow: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(30,41,59,0.8)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', gap: 8 },
-  searchInput: { flex: 1, color: '#ffffff', fontSize: 14 },
-
-  filtersScroll: { flexGrow: 0 },
-  filtersRow: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14, flexDirection: 'row', alignItems: 'center' },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: 'rgba(30,41,59,0.7)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.1)', marginRight: 8 },
-  filterChipActive: { backgroundColor: 'rgba(248,113,113,0.2)', borderColor: '#f87171' },
-  filterText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
-  filterTextActive: { color: '#f87171' },
-
-  grid: { padding: 10, paddingBottom: 120 },
-  cardWrapper: { flex: 1, padding: 6 },
-  petCard: { flex: 1, backgroundColor: 'rgba(15,23,42,0.9)', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-
-  photoContainer: { width: '100%', height: 140, position: 'relative' },
-  petPhoto: { width: '100%', height: '100%' },
-  photoPlaceholder: { flex: 1, backgroundColor: 'rgba(30,41,59,0.8)', justifyContent: 'center', alignItems: 'center' },
-  statusBadge: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 9, fontWeight: '700' },
-
-  petInfo: { padding: 10, gap: 4 },
-  petName: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
-  petBreed: { color: '#94a3b8', fontSize: 12 },
-  petMeta: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  metaChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  metaText: { color: '#94a3b8', fontSize: 10 },
-  shelterRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  shelterName: { color: '#60a5fa', fontSize: 11, fontWeight: '500', flex: 1 },
-
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { color: '#64748b', fontSize: 14 },
-  emptyTitle: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: '#64748b', fontSize: 14 },
-
-  fabMap: { position: 'absolute', bottom: 100, left: 20 },
-  fabAi: { position: 'absolute', bottom: 28, right: 20 },
-  fabBtn: { width: 54, height: 54, borderRadius: 27, backgroundColor: 'rgba(15,23,42,0.95)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(96,165,250,0.4)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
-  fabAiBtn: { borderColor: 'rgba(192,132,252,0.4)', width: 60, height: 60, borderRadius: 30 },
-
-  drawerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.6)' },
-  drawerContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 280, backgroundColor: 'rgba(15,23,42,0.97)', borderRightWidth: 1, borderRightColor: 'rgba(255,255,255,0.08)', paddingTop: 50, paddingHorizontal: 20, zIndex: 1000 },
-  drawerHeader: { marginBottom: 30 },
-  closeBtn: { alignSelf: 'flex-end', padding: 4 },
-  drawerProfile: { alignItems: 'center', marginTop: 10 },
-  drawerAvatar: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1.5, borderColor: 'rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.15)' },
-  drawerAvatarText: { fontSize: 24, fontWeight: '700', color: '#f87171' },
-  drawerUsername: { color: '#ffffff', fontSize: 18, fontWeight: '600' },
-  drawerEmail: { color: '#94a3b8', fontSize: 13, marginTop: 2, marginBottom: 10 },
-  drawerRoleBadge: { borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1.2, borderColor: 'rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.15)' },
-  drawerRoleText: { fontSize: 11, fontWeight: '600', color: '#f87171' },
-  drawerMenu: { flex: 1, gap: 8 },
-  drawerMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
-  drawerMenuText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
-  drawerFooter: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)', paddingVertical: 20, paddingBottom: 40 },
-  drawerLogoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, backgroundColor: 'rgba(239,68,68,0.12)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)' },
-  drawerLogoutText: { color: '#f87171', fontSize: 15, fontWeight: '600' },
-});

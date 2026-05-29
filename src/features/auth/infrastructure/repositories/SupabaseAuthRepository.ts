@@ -74,14 +74,13 @@ export class SupabaseAuthRepository implements IAuthRepository {
 
   async getCurrentUser(): Promise<User | null> {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return null;
+
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error) {
-        console.warn('[Auth] Error getting current user:', error.message);
-        if (error.message?.includes('Refresh token is not valid') || error.status === 400 || error.status === 401) {
-          console.log('[Auth] Invalid session detected. Clearing local session...');
-          await supabase.auth.signOut().catch(() => {});
-        }
-        return null;
+        console.warn('[Auth] getUser error, using session fallback:', error.message);
+        return this.fetchProfile(session.user.id, session.user.email ?? '', session.user);
       }
       if (!user) return null;
       return this.fetchProfile(user.id, user.email ?? '', user);
@@ -140,6 +139,13 @@ export class SupabaseAuthRepository implements IAuthRepository {
       }
       throw new AppError('PROFILE_FETCH_FAILED', e.message || 'Error al obtener perfil');
     }
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: process.env.EXPO_PUBLIC_WEB_AUTH_URL ?? 'https://petadopt-auth.vercel.app',
+    });
+    if (error) throw new AppError('AUTH_RESET_FAILED', error.message);
   }
 
   async loginWithGoogle(): Promise<User> {

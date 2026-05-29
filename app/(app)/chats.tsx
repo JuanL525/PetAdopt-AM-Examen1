@@ -1,19 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, StatusBar, Image,
-} from 'react-native';
+import { View, Text, FlatList, Pressable, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { MotiView } from 'moti';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from '@features/auth/presentation/store/authStore';
 import { petRepository, chatRepository } from '../../src/di/container';
 import { Pet } from '@features/pets/domain/entities/Pet';
+import { useColors, useThemeStore, space, radius, shadow, fontWeight, fontSize, PetText } from '@shared/design';
+import { LottieAnimation } from '../../components/animations/LottieAnimation';
+const loadingAnimation = require('../../assets/animations/loading-cat.json');
+const emptyAnimation   = require('../../assets/animations/empty-dog.json');
 
 export default function ChatsScreen() {
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
   const [pets, setPets] = useState<Pet[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,103 +35,157 @@ export default function ChatsScreen() {
     if (!pet.roomId) return;
     try {
       await chatRepository.joinRoom(pet.roomId);
-      router.push(`/(app)/chat/${pet.roomId}` as any);
     } catch {
-      // silently ignore join errors (ya es miembro)
-      router.push(`/(app)/chat/${pet.roomId}` as any);
+      // already a member
     }
+    router.push(`/(app)/chat/${pet.roomId}` as any);
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-        <View style={styles.aura} />
-        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={30} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Chats de Mascotas</Text>
-        <View style={{ width: 42 }} />
+      <View
+        style={{
+          paddingTop: insets.top + space[4],
+          paddingHorizontal: space[5],
+          paddingBottom: space[4],
+          backgroundColor: c.bgSurface,
+          borderBottomWidth: 1,
+          borderBottomColor: c.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space[3],
+          ...shadow.sm,
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: radius.full,
+              backgroundColor: c.bgSubtle,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color={c.textPrimary} />
+          </View>
+        </Pressable>
+
+        <View style={{ flex: 1 }}>
+          <PetText variant="h3">Chats de mascotas</PetText>
+          <PetText variant="caption">{pets.length} conversaciones activas</PetText>
+        </View>
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#34d399" />
-          <Text style={styles.loadingText}>Cargando chats...</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <LottieAnimation source={loadingAnimation} size={140} loop />
         </View>
       ) : pets.length === 0 ? (
-        <View style={styles.centered}>
-          <MaterialCommunityIcons name="chat-outline" size={64} color="rgba(255,255,255,0.07)" />
-          <Text style={styles.emptyTitle}>Sin chats activos</Text>
-          <Text style={styles.emptySubtitle}>
-            Los chats aparecen cuando registras mascotas.{'\n'}Los adoptantes podrán escribirte desde el detalle de cada mascota.
-          </Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: space[3], paddingHorizontal: space[8] }}>
+          <LottieAnimation source={emptyAnimation} size={180} loop />
+          <PetText variant="h3" align="center">Sin chats activos</PetText>
+          <PetText variant="body" align="center">
+            Los chats aparecen cuando registras mascotas. Los adoptantes podrán escribirte desde el detalle de cada mascota.
+          </PetText>
         </View>
       ) : (
         <FlatList
           data={pets}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={{ padding: space[5], gap: space[3] }}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => (
-            <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
-              <TouchableOpacity style={styles.chatRow} onPress={() => openChat(item)} activeOpacity={0.8}>
-                {/* Photo */}
-                <View style={styles.photoBox}>
-                  {item.photoUrl ? (
-                    <Image source={{ uri: item.photoUrl }} style={styles.photo} />
-                  ) : (
-                    <View style={styles.photoPlaceholder}>
-                      <MaterialCommunityIcons name="paw" size={26} color="#34d399" />
+            <MotiView
+              from={{ opacity: 0, translateX: -16 }}
+              animate={{ opacity: 1, translateX: 0 }}
+              transition={{ type: 'spring', damping: 18, stiffness: 200, delay: index * 70 }}
+            >
+              <Pressable onPress={() => openChat(item)}>
+                {({ pressed }) => (
+                  <MotiView
+                    animate={{ scale: pressed ? 0.98 : 1 }}
+                    transition={{ type: 'timing', duration: 100 }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: c.bgSurface,
+                      borderRadius: radius.xl,
+                      padding: space[4],
+                      gap: space[4],
+                      borderWidth: 1,
+                      borderColor: pressed ? c.primary + '44' : c.border,
+                      ...shadow.sm,
+                    }}
+                  >
+                    {/* Avatar */}
+                    <View
+                      style={{
+                        width: 58,
+                        height: 58,
+                        borderRadius: radius.full,
+                        overflow: 'hidden',
+                        borderWidth: 2,
+                        borderColor: c.primaryLight,
+                      }}
+                    >
+                      {item.photoUrl ? (
+                        <Image
+                          source={{ uri: item.photoUrl }}
+                          style={{ width: '100%', height: '100%' }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            flex: 1,
+                            backgroundColor: c.primaryLight,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <MaterialCommunityIcons name="paw" size={26} color={c.primary} />
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
 
-                {/* Info */}
-                <View style={styles.chatInfo}>
-                  <Text style={styles.petName}>{item.name}</Text>
-                  <Text style={styles.petBreed}>{item.breed}</Text>
-                  <View style={styles.roomIdRow}>
-                    <MaterialCommunityIcons name="chat-processing-outline" size={12} color="#34d399" />
-                    <Text style={styles.roomIdText}>Chat activo</Text>
-                  </View>
-                </View>
+                    {/* Info */}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={{ fontSize: fontSize.base, fontWeight: fontWeight.bold, color: c.textPrimary }}>
+                        {item.name}
+                      </Text>
+                      <Text style={{ fontSize: fontSize.sm, color: c.textMuted }}>
+                        {item.breed}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[1], marginTop: 2 }}>
+                        <View
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: radius.full,
+                            backgroundColor: c.secondary,
+                          }}
+                        />
+                        <Text style={{ fontSize: 11, fontWeight: fontWeight.semibold, color: c.secondary }}>
+                          Chat activo
+                        </Text>
+                      </View>
+                    </View>
 
-                <MaterialCommunityIcons name="chevron-right" size={24} color="#334155" />
-              </TouchableOpacity>
-            </Animated.View>
+                    <MaterialCommunityIcons name="chevron-right" size={22} color={c.textMuted} />
+                  </MotiView>
+                )}
+              </Pressable>
+            </MotiView>
           )}
         />
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  aura: { position: 'absolute', top: '-20%', right: '-30%', width: 500, height: 500, borderRadius: 250, backgroundColor: 'rgba(52,211,153,0.12)' },
-
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 16, backgroundColor: 'rgba(30,41,59,0.6)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.07)' },
-  backBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' },
-  title: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
-  loadingText: { color: '#64748b', fontSize: 14 },
-  emptyTitle: { color: '#ffffff', fontSize: 18, fontWeight: '700' },
-  emptySubtitle: { color: '#64748b', fontSize: 14, textAlign: 'center', lineHeight: 22 },
-
-  list: { padding: 16, gap: 10 },
-  chatRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(15,23,42,0.9)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', gap: 14 },
-  photoBox: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden' },
-  photo: { width: '100%', height: '100%', resizeMode: 'cover' },
-  photoPlaceholder: { flex: 1, backgroundColor: 'rgba(52,211,153,0.1)', justifyContent: 'center', alignItems: 'center' },
-  chatInfo: { flex: 1, gap: 3 },
-  petName: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  petBreed: { color: '#94a3b8', fontSize: 13 },
-  roomIdRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  roomIdText: { color: '#34d399', fontSize: 11, fontWeight: '600' },
-});

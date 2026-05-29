@@ -1,25 +1,34 @@
 import React, { useRef, useState } from 'react';
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, StatusBar
+  View, Text, FlatList, TextInput, Pressable,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MotiView, AnimatePresence } from 'moti';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useAiChat } from '@features/ai-chat/presentation/hooks/useAiChat';
 import { AiMessage } from '@features/ai-chat/domain/entities/AiMessage';
-import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useColors, useThemeStore, space, radius, shadow, fontWeight, fontSize } from '@shared/design';
 
 const SUGGESTIONS = [
-  '¿Qué debo darle de comer a un cachorro?',
-  '¿Con qué frecuencia debo llevar mi gato al veterinario?',
-  '¿Cómo entreno a un perro adulto adoptado?',
-  '¿Cuántas vacunas necesita un perro nuevo?',
+  { text: '¿Qué debo darle de comer a un cachorro?', icon: 'food-drumstick', color: '#FF5533', bg: '#FFF1EF', darkBg: '#3D1209' },
+  { text: '¿Con qué frecuencia debo llevar mi gato al veterinario?', icon: 'hospital-box', color: '#1FA896', bg: '#EFFAF8', darkBg: '#07312B' },
+  { text: '¿Cómo entreno a un perro adulto adoptado?', icon: 'school', color: '#F59E0B', bg: '#FEF3C7', darkBg: '#1C1206' },
+  { text: '¿Cuántas vacunas necesita un perro nuevo?', icon: 'shield-plus', color: '#3B82F6', bg: '#EFF6FF', darkBg: '#0C1B2E' },
 ];
+
+const AI_ACCENT = '#8B5CF6';
+const AI_HERO = '#7C3AED';
 
 export default function AiChatScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { messages, isLoading, error, sendMessage, clearChat } = useAiChat();
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
+  const AI_LIGHT = isDark ? '#1A1230' : '#F5F3FF';
   const [text, setText] = useState('');
   const listRef = useRef<FlatList>(null);
 
@@ -31,53 +40,201 @@ export default function AiChatScreen() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
-  const renderMessage = ({ item, index }: { item: AiMessage; index: number }) => {
+  const renderMessage = ({ item }: { item: AiMessage }) => {
     const isUser = item.role === 'user';
+
     return (
-      <Animated.View entering={FadeInDown.delay(50).duration(300)} style={[styles.messageRow, isUser && styles.messageRowUser]}>
+      <MotiView
+        from={{ opacity: 0, translateY: 8 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 250 }}
+        style={{
+          flexDirection: isUser ? 'row-reverse' : 'row',
+          marginBottom: space[4],
+          alignItems: 'flex-end',
+          gap: space[2],
+        }}
+      >
         {!isUser && (
-          <View style={styles.aiAvatar}>
-            <MaterialCommunityIcons name="robot" size={18} color="#c084fc" />
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: radius.full,
+              backgroundColor: AI_LIGHT,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: AI_ACCENT + '33',
+            }}
+          >
+            <MaterialCommunityIcons name="robot" size={16} color={AI_ACCENT} />
           </View>
         )}
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.content}</Text>
-          <Text style={[styles.timeText, isUser && styles.timeTextUser]}>
+
+        <View
+          style={{
+            maxWidth: '78%',
+            backgroundColor: isUser ? c.primary : (isDark ? '#1E1535' : '#F5F3FF'),
+            borderRadius: radius.xl,
+            borderBottomRightRadius: isUser ? radius.xs : radius.xl,
+            borderBottomLeftRadius: isUser ? radius.xl : radius.xs,
+            paddingHorizontal: space[4],
+            paddingVertical: space[3],
+            borderWidth: isUser ? 0 : 1,
+            borderColor: isUser ? 'transparent' : (isDark ? '#4C1D95' : '#DDD6FE'),
+            ...(isUser ? shadow.brand : shadow.sm),
+          }}
+        >
+          <Text
+            style={{
+              fontSize: fontSize.base,
+              lineHeight: 22,
+              color: isUser ? '#fff' : c.textPrimary,
+            }}
+          >
+            {item.content}
+          </Text>
+          <Text
+            style={{
+              fontSize: 10,
+              marginTop: 4,
+              textAlign: isUser ? 'right' : 'left',
+              color: isUser ? 'rgba(255,255,255,0.7)' : c.textMuted,
+            }}
+          >
             {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </Text>
         </View>
-      </Animated.View>
+      </MotiView>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={StyleSheet.absoluteFillObject}>
-        <View style={styles.aura1} />
-        <View style={styles.aura2} />
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFillObject} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style="light" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="#ffffff" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <View style={styles.headerIcon}>
-            <MaterialCommunityIcons name="robot" size={20} color="#c084fc" />
+      {/* Hero Header */}
+      <View
+        style={{
+          backgroundColor: AI_HERO,
+          paddingTop: insets.top + space[3],
+          paddingHorizontal: space[5],
+          paddingBottom: space[5],
+          overflow: 'hidden',
+        }}
+      >
+        <View
+          style={{
+            position: 'absolute', right: -36, top: -36,
+            width: 160, height: 160, borderRadius: 80,
+            backgroundColor: 'rgba(255,255,255,0.12)',
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute', right: 70, bottom: -24,
+            width: 90, height: 90, borderRadius: 45,
+            backgroundColor: 'rgba(255,255,255,0.08)',
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute', left: -16, bottom: 8,
+            width: 60, height: 60, borderRadius: 30,
+            backgroundColor: 'rgba(255,255,255,0.06)',
+          }}
+        />
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <View
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: radius.full,
+                backgroundColor: 'rgba(255,255,255,0.18)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.25)',
+              }}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={20} color="#fff" />
+            </View>
+          </Pressable>
+
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: radius.full,
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 2,
+                borderColor: 'rgba(255,255,255,0.35)',
+              }}
+            >
+              <MaterialCommunityIcons name="robot-excited" size={24} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: '#fff' }}>
+                PetAdopt AI
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: 'rgba(255,255,255,0.82)' }}>
+                Asistente de salud y cuidados
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.headerTitle}>PetAdopt AI</Text>
-            <Text style={styles.headerSubtitle}>Asistente de salud y cuidados</Text>
-          </View>
+
+          {messages.length > 0 && (
+            <Pressable onPress={clearChat} hitSlop={8}>
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: radius.full,
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={20} color="#fff" />
+              </View>
+            </Pressable>
+          )}
         </View>
-        {messages.length > 0 && (
-          <TouchableOpacity onPress={clearChat} style={styles.clearBtn}>
-            <MaterialCommunityIcons name="delete-outline" size={22} color="#64748b" />
-          </TouchableOpacity>
-        )}
+
+        {/* Quick feature pills */}
+        <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[4], flexWrap: 'wrap' }}>
+          {[
+            { icon: 'heart-pulse', label: 'Salud' },
+            { icon: 'food-apple', label: 'Nutrición' },
+            { icon: 'school', label: 'Entrenamiento' },
+          ].map((pill) => (
+            <View
+              key={pill.label}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: 'rgba(255,255,255,0.16)',
+                borderRadius: radius.full,
+                paddingHorizontal: space[3],
+                paddingVertical: 6,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.2)',
+              }}
+            >
+              <MaterialCommunityIcons name={pill.icon as any} size={14} color="#fff" />
+              <Text style={{ fontSize: fontSize.xs, color: '#fff', fontWeight: fontWeight.semibold }}>
+                {pill.label}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -86,110 +243,229 @@ export default function AiChatScreen() {
         keyboardVerticalOffset={0}
       >
         {messages.length === 0 ? (
-          <View style={styles.welcomeContainer}>
-            <View style={styles.welcomeIcon}>
-              <MaterialCommunityIcons name="robot-excited" size={60} color="#c084fc" />
-            </View>
-            <Text style={styles.welcomeTitle}>¡Hola! Soy PetAdopt AI</Text>
-            <Text style={styles.welcomeText}>Puedo ayudarte con preguntas sobre salud, alimentación y cuidados de tu mascota.</Text>
-            <Text style={styles.suggestionsTitle}>Preguntas sugeridas:</Text>
-            {SUGGESTIONS.map((s, i) => (
-              <TouchableOpacity key={i} style={styles.suggestion} onPress={() => sendMessage(s)}>
-                <MaterialCommunityIcons name="lightbulb-outline" size={16} color="#c084fc" />
-                <Text style={styles.suggestionText}>{s}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <FlatList
+            data={SUGGESTIONS}
+            keyExtractor={(s) => s.text}
+            ListHeaderComponent={
+              <View style={{ alignItems: 'center', paddingTop: space[6], paddingBottom: space[5], gap: space[3] }}>
+                <MotiView
+                  from={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', damping: 14, stiffness: 200 }}
+                  style={{
+                    width: 80,
+                    height: 80,
+                    borderRadius: radius.full,
+                    backgroundColor: isDark ? '#1E1535' : '#F5F3FF',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: AI_ACCENT + '44',
+                    ...shadow.md,
+                  }}
+                >
+                  <MaterialCommunityIcons name="robot-excited" size={42} color={AI_ACCENT} />
+                </MotiView>
+
+                <Text style={{ fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: c.textPrimary, textAlign: 'center' }}>
+                  ¡Hola! Soy PetAdopt AI
+                </Text>
+                <Text style={{ fontSize: fontSize.sm, color: c.textSecondary, textAlign: 'center', lineHeight: 22, paddingHorizontal: space[4] }}>
+                  Puedo ayudarte con preguntas sobre salud, alimentación y cuidados de tu mascota.
+                </Text>
+
+                <Text style={{ fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: AI_ACCENT, letterSpacing: 1, textTransform: 'uppercase', alignSelf: 'flex-start', marginTop: space[2] }}>
+                  Preguntas sugeridas
+                </Text>
+              </View>
+            }
+            contentContainerStyle={{ paddingHorizontal: space[5], paddingBottom: space[8] }}
+            renderItem={({ item, index }) => (
+              <MotiView
+                from={{ opacity: 0, translateX: -12 }}
+                animate={{ opacity: 1, translateX: 0 }}
+                transition={{ type: 'timing', duration: 250, delay: index * 80 }}
+                style={{ marginBottom: space[3] }}
+              >
+                <Pressable onPress={() => sendMessage(item.text)}>
+                  {({ pressed }) => (
+                    <MotiView
+                      animate={{ scale: pressed ? 0.98 : 1 }}
+                      transition={{ type: 'timing', duration: 100 }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: space[3],
+                        backgroundColor: isDark ? item.darkBg : item.bg,
+                        borderRadius: radius.lg,
+                        padding: space[4],
+                        borderWidth: 1.5,
+                        borderColor: pressed ? item.color : item.color + '33',
+                        ...shadow.sm,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: radius.full,
+                          backgroundColor: item.color + '22',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MaterialCommunityIcons name={item.icon as any} size={20} color={item.color} />
+                      </View>
+                      <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.textPrimary, lineHeight: 20, fontWeight: fontWeight.medium }}>
+                        {item.text}
+                      </Text>
+                      <MaterialCommunityIcons name="arrow-right" size={18} color={item.color} />
+                    </MotiView>
+                  )}
+                </Pressable>
+              </MotiView>
+            )}
+          />
         ) : (
           <FlatList
             ref={listRef}
             data={messages}
             keyExtractor={(m) => m.id}
             renderItem={renderMessage}
-            contentContainerStyle={styles.messageList}
+            contentContainerStyle={{ padding: space[5], paddingBottom: space[3], flexGrow: 1 }}
             onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           />
         )}
 
-        {error && (
-          <View style={styles.errorBanner}>
-            <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#f87171" />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+        {/* Error */}
+        <AnimatePresence>
+          {error && (
+            <MotiView
+              from={{ opacity: 0, translateY: 8 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              exit={{ opacity: 0 }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space[2],
+                backgroundColor: '#FEF2F2',
+                borderColor: '#FECACA',
+                borderWidth: 1,
+                borderRadius: radius.md,
+                padding: space[3],
+                marginHorizontal: space[5],
+                marginBottom: space[2],
+              }}
+            >
+              <MaterialCommunityIcons name="alert-circle-outline" size={16} color={c.error} />
+              <Text style={{ flex: 1, fontSize: fontSize.sm, color: c.error }}>{error}</Text>
+            </MotiView>
+          )}
+        </AnimatePresence>
 
+        {/* Typing indicator */}
         {isLoading && (
-          <View style={styles.typingIndicator}>
-            <View style={styles.aiAvatar}>
-              <MaterialCommunityIcons name="robot" size={16} color="#c084fc" />
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              gap: space[2],
+              paddingHorizontal: space[5],
+              paddingBottom: space[2],
+            }}
+          >
+            <View
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: radius.full,
+                backgroundColor: AI_LIGHT,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="robot" size={16} color={AI_ACCENT} />
             </View>
-            <View style={styles.typingBubble}>
-              <ActivityIndicator size="small" color="#c084fc" />
-              <Text style={styles.typingText}>Pensando...</Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space[2],
+                backgroundColor: isDark ? '#1E1535' : '#F5F3FF',
+                borderRadius: radius.xl,
+                borderBottomLeftRadius: radius.xs,
+                paddingHorizontal: space[4],
+                paddingVertical: space[3],
+                borderWidth: 1,
+                borderColor: isDark ? '#4C1D95' : '#DDD6FE',
+              }}
+            >
+              <ActivityIndicator size="small" color={AI_ACCENT} />
+              <Text style={{ fontSize: fontSize.sm, color: c.textMuted }}>Pensando...</Text>
             </View>
           </View>
         )}
 
         {/* Input bar */}
-        <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={text}
-            onChangeText={setText}
-            placeholder="Pregunta sobre salud, cuidados..."
-            placeholderTextColor="#64748b"
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!text.trim() || isLoading) && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!text.trim() || isLoading}
+        <View
+          style={{
+            flexDirection: 'row',
+            paddingHorizontal: space[4],
+            paddingTop: space[3],
+            paddingBottom: Math.max(insets.bottom + space[3], space[5]),
+            backgroundColor: isDark ? '#1A1230' : '#FAF5FF',
+            borderTopWidth: 1,
+            borderTopColor: isDark ? '#4C1D95' : '#EDE9FE',
+            gap: space[2],
+            alignItems: 'flex-end',
+          }}
+        >
+          <MotiView
+            animate={{ borderColor: text.length > 0 ? AI_ACCENT : c.border }}
+            transition={{ type: 'timing', duration: 150 }}
+            style={{
+              flex: 1,
+              borderWidth: 1.5,
+              borderRadius: radius.xl,
+              backgroundColor: c.bgSubtle,
+              paddingHorizontal: space[4],
+              paddingVertical: space[2],
+              maxHeight: 120,
+            }}
           >
-            <MaterialCommunityIcons name="send" size={18} color="#ffffff" />
-          </TouchableOpacity>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Pregunta sobre salud, cuidados..."
+              placeholderTextColor={c.textMuted}
+              multiline
+              maxLength={500}
+              style={{ fontSize: fontSize.base, color: c.textPrimary, maxHeight: 100 }}
+            />
+          </MotiView>
+
+          <Pressable onPress={handleSend} disabled={!text.trim() || isLoading}>
+            <MotiView
+              animate={{ backgroundColor: text.trim() && !isLoading ? AI_ACCENT : c.bgSubtle }}
+              transition={{ type: 'timing', duration: 180 }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: radius.full,
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...shadow.sm,
+              }}
+            >
+              <MaterialCommunityIcons
+                name="send"
+                size={18}
+                color={text.trim() && !isLoading ? '#fff' : c.textMuted}
+              />
+            </MotiView>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  aura1: { position: 'absolute', top: '-20%', left: '-30%', width: 500, height: 500, borderRadius: 250, backgroundColor: 'rgba(192,132,252,0.15)' },
-  aura2: { position: 'absolute', bottom: '10%', right: '-30%', width: 400, height: 400, borderRadius: 200, backgroundColor: 'rgba(79,70,229,0.15)' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, backgroundColor: 'rgba(30,41,59,0.6)', borderBottomWidth: 1.2, borderBottomColor: 'rgba(255,255,255,0.08)', gap: 12 },
-  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(192,132,252,0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(192,132,252,0.3)' },
-  headerTitle: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  headerSubtitle: { color: '#94a3b8', fontSize: 12 },
-  clearBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  welcomeContainer: { flex: 1, padding: 24, alignItems: 'center' },
-  welcomeIcon: { width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(192,132,252,0.12)', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1.5, borderColor: 'rgba(192,132,252,0.3)' },
-  welcomeTitle: { color: '#ffffff', fontSize: 22, fontWeight: '700', marginBottom: 10 },
-  welcomeText: { color: '#94a3b8', fontSize: 14, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  suggestionsTitle: { color: '#64748b', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, alignSelf: 'flex-start', marginBottom: 12 },
-  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(192,132,252,0.08)', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(192,132,252,0.2)', width: '100%' },
-  suggestionText: { color: '#cbd5e1', fontSize: 13, flex: 1 },
-  messageList: { padding: 16, paddingBottom: 8, flexGrow: 1 },
-  messageRow: { flexDirection: 'row', marginBottom: 16, alignItems: 'flex-end', gap: 8 },
-  messageRowUser: { flexDirection: 'row-reverse' },
-  aiAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(192,132,252,0.15)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(192,132,252,0.3)' },
-  bubble: { maxWidth: '78%', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10 },
-  bubbleUser: { backgroundColor: '#6366f1', borderBottomRightRadius: 4 },
-  bubbleAI: { backgroundColor: 'rgba(22,32,51,0.9)', borderBottomLeftRadius: 4, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.09)' },
-  bubbleText: { color: '#cbd5e1', fontSize: 15, lineHeight: 21 },
-  bubbleTextUser: { color: '#ffffff' },
-  timeText: { color: '#64748b', fontSize: 10, marginTop: 4 },
-  timeTextUser: { textAlign: 'right', color: 'rgba(255,255,255,0.6)' },
-  typingIndicator: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
-  typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(22,32,51,0.9)', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.09)' },
-  typingText: { color: '#94a3b8', fontSize: 13 },
-  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)', borderWidth: 1, borderRadius: 10, padding: 12, marginHorizontal: 16, marginBottom: 8 },
-  errorText: { color: '#f87171', fontSize: 13, flex: 1 },
-  inputBar: { flexDirection: 'row', padding: 12, paddingBottom: 30, backgroundColor: 'rgba(30,41,59,0.65)', borderTopWidth: 1.2, borderTopColor: 'rgba(255,255,255,0.08)', gap: 10, alignItems: 'flex-end' },
-  input: { flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: '#ffffff', fontSize: 15, maxHeight: 120, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)' },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#c084fc', justifyContent: 'center', alignItems: 'center' },
-  sendBtnDisabled: { backgroundColor: 'rgba(192,132,252,0.3)', opacity: 0.5 },
-});

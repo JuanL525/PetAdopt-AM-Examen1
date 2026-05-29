@@ -34,6 +34,7 @@ export interface UpdatePetDTO {
   size?: PetSize;
   description?: string;
   status?: PetStatus;
+  roomId?: string;
   photoUri?: string;
   photoBase64?: string;
 }
@@ -53,4 +54,23 @@ export function createPetFactory(raw: any): Pet {
     roomId: raw.room_id ?? null,
     createdAt: raw.created_at,
   };
+}
+
+export type AgeUnit = 'months' | 'years';
+
+/** Codifica edad: meses 1–12 tal cual; años 1–20 como 101–120 */
+export function encodePetAge(value: number, unit: AgeUnit): number {
+  return unit === 'months' ? value : 100 + value;
+}
+
+/** Texto legible según codificación de edad */
+export function formatPetAge(age: number): string {
+  if (age <= 12) {
+    return `${age} ${age === 1 ? 'mes' : 'meses'}`;
+  }
+  if (age >= 101) {
+    const years = age - 100;
+    return `${years} ${years === 1 ? 'año' : 'años'}`;
+  }
+  return `${age} ${age === 1 ? 'año' : 'años'}`;
 }

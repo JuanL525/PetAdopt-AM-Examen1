@@ -1,31 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, Image, ActivityIndicator, StatusBar
-} from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { MotiView } from 'moti';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { usePets } from '@features/pets/presentation/hooks/usePets';
 import { petRepository } from '../../../../src/di/container';
 import { Pet, PetSize, PetStatus } from '@features/pets/domain/entities/Pet';
-import { BlurView } from 'expo-blur';
+import {
+  useColors, useThemeStore, space, radius, shadow, fontWeight, fontSize,
+  PetButton, PetInput, PetText,
+} from '@shared/design';
 
-const SIZES: { value: PetSize; label: string }[] = [
-  { value: 'small', label: 'Pequeño' },
-  { value: 'medium', label: 'Mediano' },
-  { value: 'large', label: 'Grande' },
-];
-const STATUSES: { value: PetStatus; label: string; color: string }[] = [
-  { value: 'available', label: 'Disponible', color: '#34d399' },
-  { value: 'pending', label: 'En proceso', color: '#fbbf24' },
-  { value: 'adopted', label: 'Adoptado', color: '#60a5fa' },
+const SIZES: { value: PetSize; label: string; emoji: string }[] = [
+  { value: 'small',  label: 'Pequeño', emoji: '🐭' },
+  { value: 'medium', label: 'Mediano', emoji: '🐶' },
+  { value: 'large',  label: 'Grande',  emoji: '🐕' },
 ];
 
 export default function EditPetScreen() {
   const { petId } = useLocalSearchParams<{ petId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { updatePet } = usePets();
+
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
+  const STATUSES = [
+    { value: 'available' as PetStatus, label: 'Disponible', bg: isDark ? '#052E1C' : '#D1FAE5', text: isDark ? '#4ADE80' : '#065F46', border: isDark ? '#065F46' : '#A7F3D0' },
+    { value: 'pending'   as PetStatus, label: 'En proceso', bg: isDark ? '#1C1206' : '#FEF3C7', text: isDark ? '#FBBF24' : '#92400E', border: isDark ? '#78350F' : '#FDE68A' },
+    { value: 'adopted'   as PetStatus, label: 'Adoptado',   bg: isDark ? '#0C1B2E' : '#EFF6FF', text: isDark ? '#60A5FA' : '#1E40AF', border: isDark ? '#1E3A5F' : '#BFDBFE' },
+  ];
 
   const [pet, setPet] = useState<Pet | null>(null);
   const [name, setName] = useState('');
@@ -70,19 +77,13 @@ export default function EditPetScreen() {
     setSaving(true);
     try {
       await updatePet({
-        id: petId,
-        name: name.trim(),
-        breed: breed.trim(),
-        age: parseInt(age) || 0,
-        size,
-        status,
+        id: petId, name: name.trim(), breed: breed.trim(),
+        age: parseInt(age) || 0, size, status,
         description: description.trim(),
         photoUri: photoUri ?? undefined,
         photoBase64: photoBase64 ?? undefined,
       });
-      Alert.alert('¡Actualizado!', 'La información de la mascota fue guardada', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert('¡Actualizado!', 'La información fue guardada', [{ text: 'OK', onPress: () => router.back() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
@@ -90,94 +91,162 @@ export default function EditPetScreen() {
     }
   };
 
-  if (loading) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><ActivityIndicator size="large" color="#34d399" /></View>;
+  if (loading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: c.bgPage, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={c.primary} />
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={StyleSheet.absoluteFillObject}>
-        <View style={styles.aura1} />
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFillObject} />
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + space[4],
+          paddingHorizontal: space[5],
+          paddingBottom: space[4],
+          backgroundColor: c.bgSurface,
+          borderBottomWidth: 1,
+          borderBottomColor: c.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space[3],
+          ...shadow.sm,
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <View
+            style={{
+              width: 38, height: 38, borderRadius: radius.full,
+              backgroundColor: c.bgSubtle, alignItems: 'center', justifyContent: 'center',
+              borderWidth: 1, borderColor: c.border,
+            }}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color={c.textPrimary} />
+          </View>
+        </Pressable>
+        <PetText variant="h3">Editar mascota</PetText>
       </View>
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Editar Mascota</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.photoBox} onPress={handlePickPhoto} activeOpacity={0.8}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-          ) : pet?.photoUrl ? (
-            <Image source={{ uri: pet.photoUrl }} style={styles.photoPreview} />
-          ) : (
-            <>
-              <MaterialCommunityIcons name="camera-plus" size={40} color="#64748b" />
-              <Text style={styles.photoHint}>Toca para cambiar foto</Text>
-            </>
+      <ScrollView
+        contentContainerStyle={{ padding: space[5], gap: space[4], paddingBottom: space[12] }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Photo */}
+        <Pressable onPress={handlePickPhoto}>
+          {({ pressed }) => (
+            <MotiView
+              animate={{ opacity: pressed ? 0.85 : 1 }}
+              style={{
+                height: 180,
+                borderRadius: radius.xl,
+                backgroundColor: c.primaryLight,
+                borderWidth: 2,
+                borderColor: (photoUri || pet?.photoUrl) ? c.primary : c.border,
+                borderStyle: (photoUri || pet?.photoUrl) ? 'solid' : 'dashed',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}
+            >
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              ) : pet?.photoUrl ? (
+                <Image source={{ uri: pet.photoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              ) : (
+                <View style={{ alignItems: 'center', gap: space[2] }}>
+                  <MaterialCommunityIcons name="camera-plus" size={30} color={c.primary} />
+                  <Text style={{ fontSize: fontSize.sm, color: c.primary, fontWeight: fontWeight.semibold }}>
+                    Cambiar foto
+                  </Text>
+                </View>
+              )}
+            </MotiView>
           )}
-        </TouchableOpacity>
+        </Pressable>
 
-        <Text style={styles.label}>Nombre</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor="#475569" />
-
-        <Text style={styles.label}>Raza</Text>
-        <TextInput style={styles.input} value={breed} onChangeText={setBreed} placeholderTextColor="#475569" />
-
-        <Text style={styles.label}>Edad (años)</Text>
-        <TextInput style={styles.input} value={age} onChangeText={setAge} keyboardType="numeric" placeholderTextColor="#475569" />
-
-        <Text style={styles.label}>Tamaño</Text>
-        <View style={styles.row}>
-          {SIZES.map((s) => (
-            <TouchableOpacity key={s.value} style={[styles.chip, size === s.value && styles.chipActive]} onPress={() => setSize(s.value)}>
-              <Text style={[styles.chipText, size === s.value && styles.chipTextActive]}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* Fields */}
+        <View style={{ gap: space[3] }}>
+          <PetInput label="Nombre" value={name} onChangeText={setName}
+            leftIcon={<MaterialCommunityIcons name="paw" size={20} color={c.textMuted} />} />
+          <PetInput label="Raza" value={breed} onChangeText={setBreed}
+            leftIcon={<MaterialCommunityIcons name="dog" size={20} color={c.textMuted} />} />
+          <PetInput label="Edad (años)" value={age} onChangeText={setAge} keyboardType="numeric"
+            leftIcon={<MaterialCommunityIcons name="calendar-outline" size={20} color={c.textMuted} />} />
         </View>
 
-        <Text style={styles.label}>Estado</Text>
-        <View style={styles.row}>
-          {STATUSES.map((s) => (
-            <TouchableOpacity key={s.value} style={[styles.chip, status === s.value && { borderColor: s.color, backgroundColor: s.color + '20' }]} onPress={() => setStatus(s.value)}>
-              <Text style={[styles.chipText, status === s.value && { color: s.color }]}>{s.label}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* Size */}
+        <View>
+          <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[3], letterSpacing: 0.3 }}>
+            Tamaño
+          </Text>
+          <View style={{ flexDirection: 'row', gap: space[3] }}>
+            {SIZES.map((s) => {
+              const active = size === s.value;
+              return (
+                <Pressable key={s.value} onPress={() => setSize(s.value)} style={{ flex: 1 }}>
+                  <MotiView
+                    animate={{ backgroundColor: active ? c.primaryLight : c.bgSurface, borderColor: active ? c.primary : c.border }}
+                    transition={{ type: 'timing', duration: 160 }}
+                    style={{ borderWidth: 1.5, borderRadius: radius.lg, paddingVertical: space[3], alignItems: 'center', gap: space[1] }}
+                  >
+                    <Text style={{ fontSize: 20 }}>{s.emoji}</Text>
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: active ? c.primary : c.textSecondary }}>
+                      {s.label}
+                    </Text>
+                  </MotiView>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
-        <Text style={styles.label}>Descripción</Text>
-        <TextInput style={[styles.input, styles.textarea]} value={description} onChangeText={setDescription} multiline numberOfLines={4} placeholderTextColor="#475569" />
+        {/* Status */}
+        <View>
+          <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[3], letterSpacing: 0.3 }}>
+            Estado
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+            {STATUSES.map((s) => {
+              const active = status === s.value;
+              return (
+                <Pressable key={s.value} onPress={() => setStatus(s.value)}>
+                  <MotiView
+                    animate={{ backgroundColor: active ? s.bg : c.bgSurface, borderColor: active ? s.border : c.border }}
+                    transition={{ type: 'timing', duration: 160 }}
+                    style={{ paddingHorizontal: space[4], paddingVertical: space[2], borderRadius: radius.full, borderWidth: 1.5 }}
+                  >
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: active ? s.text : c.textMuted }}>
+                      {s.label}
+                    </Text>
+                  </MotiView>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
 
-        <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.saveBtnText}>Guardar Cambios</Text>}
-        </TouchableOpacity>
+        {/* Description */}
+        <View>
+          <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[2], letterSpacing: 0.3 }}>
+            Descripción
+          </Text>
+          <View style={{ borderWidth: 1.5, borderRadius: radius.lg, borderColor: c.border, backgroundColor: c.bgSurface, padding: space[4], minHeight: 110 }}>
+            <TextInput
+              value={description} onChangeText={setDescription} multiline numberOfLines={4}
+              style={{ fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22, textAlignVertical: 'top' }}
+            />
+          </View>
+        </View>
+
+        <PetButton label="Guardar cambios" onPress={handleSave} loading={saving}
+          icon={<MaterialCommunityIcons name="content-save" size={18} color="#fff" />} />
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  aura1: { position: 'absolute', top: '-20%', left: '-30%', width: 500, height: 500, borderRadius: 250, backgroundColor: 'rgba(52,211,153,0.18)' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, backgroundColor: 'rgba(30,41,59,0.6)', borderBottomWidth: 1.2, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { flex: 1, color: '#ffffff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  form: { padding: 20, paddingBottom: 60, gap: 12 },
-  photoBox: { height: 160, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 4 },
-  photoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  photoHint: { color: '#64748b', fontSize: 13, marginTop: 8 },
-  label: { color: '#94a3b8', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 4 },
-  input: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#ffffff', fontSize: 15 },
-  textarea: { height: 100, textAlignVertical: 'top' },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)' },
-  chipActive: { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' },
-  chipText: { color: '#64748b', fontWeight: '600', fontSize: 13 },
-  chipTextActive: { color: '#34d399' },
-  saveBtn: { backgroundColor: '#34d399', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: '#34d399', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-});

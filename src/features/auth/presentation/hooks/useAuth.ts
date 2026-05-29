@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { loginUseCase, registerUseCase, logoutUseCase, loginWithGoogleUseCase } from '../../../../di/container';
+import { loginUseCase, registerUseCase, logoutUseCase, loginWithGoogleUseCase, forgotPasswordUseCase } from '../../../../di/container';
 import { CreateUserDTO, LoginDTO } from '../../domain/entities/User';
 
 export function useAuth() {
@@ -51,6 +51,19 @@ export function useAuth() {
     }
   }, [setLoading, setError]);
 
+  const forgotPassword = useCallback(async (email: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await forgotPasswordUseCase.execute(email);
+    } catch (e: any) {
+      setError(e.message ?? 'Error al enviar el correo de recuperación');
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, setError]);
+
   const logout = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -65,5 +78,5 @@ export function useAuth() {
     }
   }, [reset, setLoading, setError]);
 
-  return { user, isLoading, error, login, register, loginWithGoogle, logout };
+  return { user, isLoading, error, login, register, loginWithGoogle, logout, forgotPassword };
 }

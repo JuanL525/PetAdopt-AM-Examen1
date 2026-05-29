@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuthStore } from '@features/auth/presentation/store/authStore';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
+import { useColors } from '@shared/design';
 import { LottieAnimation } from '../../components/animations/LottieAnimation';
-const loadingAnimation = require('../../assets/animations/loading-paw.json');
+const loadingAnimation = require('../../assets/animations/loading-cat.json');
 
 /**
  * Puerta de entrada tras el login.
@@ -13,6 +14,7 @@ export default function AppIndex() {
   const user  = useAuthStore((s) => s.user);
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
+  const c = useColors();
 
   useEffect(() => {
     if (!rootNavigationState?.key) return;
@@ -31,7 +33,7 @@ export default function AppIndex() {
   }, [user, router, rootNavigationState?.key]);
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#090d16' }}>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.bgPage }}>
       <LottieAnimation source={loadingAnimation} size={140} loop />
     </View>
   );

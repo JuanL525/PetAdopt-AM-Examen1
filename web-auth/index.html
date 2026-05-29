@@ -76,8 +76,8 @@
   </div>
 
   <script>
-    const SUPABASE_URL = 'REEMPLAZA_CON_TU_SUPABASE_URL';
-    const SUPABASE_ANON_KEY = 'REEMPLAZA_CON_TU_SUPABASE_ANON_KEY';
+    const SUPABASE_URL = 'https://xjagectkljlgkhxxmjnu.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqYWdlY3RrbGpsZ2toeHhtam51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDczODAsImV4cCI6MjA5MjYyMzM4MH0.7MpHAkjYLQ9LhBN3JGjhEaHjpkzUS9QQLUnp-ulixkQ';
     const { createClient } = supabase;
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -112,7 +112,29 @@
       }
     }
 
-    function handlePasswordReset() {
+    async function handlePasswordReset() {
+      document.getElementById('subtitle').textContent = 'Verificando enlace...';
+
+      if (tokenHash) {
+        const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+        if (error) {
+          document.getElementById('subtitle').textContent = 'Enlace inválido';
+          showMessage('El enlace es inválido o ha expirado. Solicita uno nuevo desde la app.', true);
+          return;
+        }
+      } else if (accessToken) {
+        const { error } = await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
+        if (error) {
+          document.getElementById('subtitle').textContent = 'Sesión inválida';
+          showMessage('No se pudo autenticar. El enlace puede haber expirado.', true);
+          return;
+        }
+      } else {
+        document.getElementById('subtitle').textContent = 'Enlace inválido';
+        showMessage('No se encontró un token de recuperación válido en este enlace.', true);
+        return;
+      }
+
       document.getElementById('subtitle').textContent = 'Crear nueva contraseña';
       document.getElementById('form-container').innerHTML = `
         <input type="password" id="password" placeholder="Nueva contraseña (mín. 6 caracteres)" />
@@ -129,9 +151,6 @@
 
       document.querySelector('button').disabled = true;
       try {
-        if (accessToken) {
-          await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken || '' });
-        }
         const { error } = await sb.auth.updateUser({ password });
         if (error) throw error;
         showMessage('¡Contraseña actualizada! Abre la app PetAdopt para iniciar sesión.', false);

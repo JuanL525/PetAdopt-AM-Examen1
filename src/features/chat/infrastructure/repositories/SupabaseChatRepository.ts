@@ -105,9 +105,13 @@ export class SupabaseChatRepository implements IChatRepository {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new AppError('AUTH_REQUIRED', 'No autenticado');
 
+    // ignoreDuplicates evita UPDATE en conflicto (RLS suele permitir INSERT pero no UPDATE)
     const { error } = await supabase
       .from('room_members')
-      .upsert({ room_id: roomId, user_id: user.id });
+      .upsert(
+        { room_id: roomId, user_id: user.id },
+        { onConflict: 'room_id,user_id', ignoreDuplicates: true },
+      );
 
     if (error) throw new AppError('ROOM_JOIN_FAILED', error.message);
   }

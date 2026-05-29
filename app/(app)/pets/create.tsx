@@ -1,29 +1,35 @@
 import React, { useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Alert, Image, ActivityIndicator, StatusBar
-} from 'react-native';
+import { View, Text, ScrollView, Pressable, Alert, Image, ActivityIndicator, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { MotiView } from 'moti';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { usePets } from '@features/pets/presentation/hooks/usePets';
-import { PetSize } from '@features/pets/domain/entities/Pet';
-import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { PetSize, AgeUnit, encodePetAge } from '@features/pets/domain/entities/Pet';
+import {
+  useColors, useThemeStore, space, radius, shadow, fontWeight, fontSize,
+  PetButton, PetInput, PetText,
+} from '@shared/design';
 
-const SIZES: { value: PetSize; label: string }[] = [
-  { value: 'small', label: 'Pequeño' },
-  { value: 'medium', label: 'Mediano' },
-  { value: 'large', label: 'Grande' },
+const SIZES: { value: PetSize; label: string; emoji: string }[] = [
+  { value: 'small',  label: 'Pequeño',  emoji: '🐭' },
+  { value: 'medium', label: 'Mediano',  emoji: '🐶' },
+  { value: 'large',  label: 'Grande',   emoji: '🐕' },
 ];
 
 export default function CreatePetScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { createPet } = usePets();
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
 
   const [name, setName] = useState('');
   const [breed, setBreed] = useState('');
   const [age, setAge] = useState('');
+  const [ageUnit, setAgeUnit] = useState<AgeUnit>('years');
   const [size, setSize] = useState<PetSize>('medium');
   const [description, setDescription] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -49,9 +55,48 @@ export default function CreatePetScreen() {
     }
   };
 
+  const handleAgeUnitChange = (unit: AgeUnit) => {
+    setAgeUnit(unit);
+    setAge('');
+  };
+
+  const handleAgeChange = (text: string) => {
+    const digits = text.replace(/\D/g, '');
+    if (!digits) {
+      setAge('');
+      return;
+    }
+    const max = ageUnit === 'months' ? 12 : 20;
+    const num = Math.min(parseInt(digits, 10), max);
+    setAge(String(num));
+  };
+
   const handleSave = async () => {
+    if (!photoUri || !photoBase64) {
+      Alert.alert('Foto requerida', 'Debes añadir una foto de la mascota para continuar');
+      return;
+    }
     if (!name.trim() || !breed.trim()) {
       Alert.alert('Campos requeridos', 'Nombre y raza son obligatorios');
+      return;
+    }
+    if (/\d/.test(breed)) {
+      Alert.alert('Raza inválida', 'La raza no puede contener números');
+      return;
+    }
+    const ageNum = parseInt(age, 10);
+    if (!age || isNaN(ageNum) || ageNum < 1) {
+      Alert.alert('Edad requerida', `Indica la edad en ${ageUnit === 'months' ? 'meses' : 'años'}`);
+      return;
+    }
+    const maxAge = ageUnit === 'months' ? 12 : 20;
+    if (ageNum > maxAge) {
+      Alert.alert(
+        'Edad inválida',
+        ageUnit === 'months'
+          ? 'La edad en meses no puede ser mayor a 12'
+          : 'La edad en años no puede ser mayor a 20',
+      );
       return;
     }
     setSaving(true);
@@ -59,13 +104,13 @@ export default function CreatePetScreen() {
       await createPet({
         name: name.trim(),
         breed: breed.trim(),
-        age: parseInt(age) || 0,
+        age: encodePetAge(ageNum, ageUnit),
         size,
         description: description.trim(),
-        photoUri: photoUri ?? undefined,
-        photoBase64: photoBase64 ?? undefined,
+        photoUri,
+        photoBase64,
       });
-      Alert.alert('¡Éxito!', `${name} fue registrada exitosamente`, [
+      Alert.alert('¡Listo!', `${name} fue registrada exitosamente`, [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (e: any) {
@@ -76,114 +121,261 @@ export default function CreatePetScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={StyleSheet.absoluteFillObject}>
-        <View style={styles.aura1} />
-        <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFillObject} />
-      </View>
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Nueva Mascota</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
-        <Animated.View entering={FadeInDown.delay(100)}>
-          <TouchableOpacity style={styles.photoBox} onPress={handlePickPhoto} activeOpacity={0.8}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-            ) : (
-              <>
-                <MaterialCommunityIcons name="camera-plus" size={40} color="#64748b" />
-                <Text style={styles.photoHint}>Toca para agregar foto</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(200)}>
-          <Text style={styles.label}>Nombre *</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Ej: Luna" placeholderTextColor="#475569" />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(250)}>
-          <Text style={styles.label}>Raza *</Text>
-          <TextInput style={styles.input} value={breed} onChangeText={setBreed} placeholder="Ej: Labrador" placeholderTextColor="#475569" />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(300)}>
-          <Text style={styles.label}>Edad (años)</Text>
-          <TextInput style={styles.input} value={age} onChangeText={setAge} placeholder="0" placeholderTextColor="#475569" keyboardType="numeric" />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(350)}>
-          <Text style={styles.label}>Tamaño</Text>
-          <View style={styles.sizeRow}>
-            {SIZES.map((s) => (
-              <TouchableOpacity
-                key={s.value}
-                style={[styles.sizeBtn, size === s.value && styles.sizeBtnActive]}
-                onPress={() => setSize(s.value)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.sizeBtnText, size === s.value && styles.sizeBtnTextActive]}>{s.label}</Text>
-              </TouchableOpacity>
-            ))}
+      {/* Header */}
+      <View
+        style={{
+          paddingTop: insets.top + space[4],
+          paddingHorizontal: space[5],
+          paddingBottom: space[4],
+          backgroundColor: c.bgSurface,
+          borderBottomWidth: 1,
+          borderBottomColor: c.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space[3],
+          ...shadow.sm,
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: radius.full,
+              backgroundColor: c.bgSubtle,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color={c.textPrimary} />
           </View>
-        </Animated.View>
+        </Pressable>
+        <PetText variant="h3">Nueva mascota</PetText>
+      </View>
 
-        <Animated.View entering={FadeInDown.delay(400)}>
-          <Text style={styles.label}>Descripción</Text>
-          <TextInput
-            style={[styles.input, styles.textarea]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Cuéntanos sobre la personalidad y necesidades de la mascota..."
-            placeholderTextColor="#475569"
-            multiline
-            numberOfLines={4}
-          />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(500)}>
-          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} activeOpacity={0.8}>
-            {saving ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <>
-                <MaterialCommunityIcons name="content-save" size={20} color="#ffffff" />
-                <Text style={styles.saveBtnText}>Guardar Mascota</Text>
-              </>
+      <ScrollView
+        contentContainerStyle={{ padding: space[5], gap: space[4], paddingBottom: space[12] }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Photo picker */}
+        <MotiView
+          from={{ opacity: 0, scale: 0.94 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 80 }}
+        >
+          <Pressable onPress={handlePickPhoto}>
+            {({ pressed }) => (
+              <MotiView
+                animate={{ opacity: pressed ? 0.85 : 1 }}
+                style={{
+                  height: 200,
+                  borderRadius: radius.xl,
+                  backgroundColor: c.primaryLight,
+                  borderWidth: 2,
+                  borderColor: photoUri ? c.primary : c.border,
+                  borderStyle: photoUri ? 'solid' : 'dashed',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                }}
+              >
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : (
+                  <View style={{ alignItems: 'center', gap: space[2] }}>
+                    <View
+                      style={{
+                        width: 64,
+                        height: 64,
+                        borderRadius: radius.full,
+                        backgroundColor: c.bgSurface,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        ...shadow.sm,
+                      }}
+                    >
+                      <MaterialCommunityIcons name="camera-plus" size={30} color={c.primary} />
+                    </View>
+                    <Text style={{ fontSize: fontSize.sm, color: c.primary, fontWeight: fontWeight.semibold }}>
+                      Añadir foto *
+                    </Text>
+                    <Text style={{ fontSize: fontSize.xs, color: c.textMuted }}>
+                      Obligatorio · toca para seleccionar de tu galería
+                    </Text>
+                  </View>
+                )}
+              </MotiView>
             )}
-          </TouchableOpacity>
-        </Animated.View>
+          </Pressable>
+        </MotiView>
+
+        {/* Fields */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 160 }}
+          style={{ gap: space[3] }}
+        >
+          <PetInput
+            label="Nombre *"
+            value={name}
+            onChangeText={setName}
+            placeholder="Ej: Luna"
+            leftIcon={<MaterialCommunityIcons name="paw" size={20} color={c.textMuted} />}
+          />
+
+          <PetInput
+            label="Raza *"
+            value={breed}
+            onChangeText={(text) => setBreed(text.replace(/\d/g, ''))}
+            placeholder="Ej: Labrador"
+            leftIcon={<MaterialCommunityIcons name="dog" size={20} color={c.textMuted} />}
+          />
+
+          {/* Age unit toggle */}
+          <View>
+            <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[2], letterSpacing: 0.3 }}>
+              Edad *
+            </Text>
+            <View style={{ flexDirection: 'row', gap: space[2], marginBottom: space[3] }}>
+              {(['months', 'years'] as AgeUnit[]).map((unit) => {
+                const active = ageUnit === unit;
+                return (
+                  <Pressable key={unit} onPress={() => handleAgeUnitChange(unit)} style={{ flex: 1 }}>
+                    <MotiView
+                      animate={{
+                        backgroundColor: active ? c.primaryLight : c.bgSurface,
+                        borderColor: active ? c.primary : c.border,
+                      }}
+                      transition={{ type: 'timing', duration: 160 }}
+                      style={{
+                        borderWidth: 1.5,
+                        borderRadius: radius.lg,
+                        paddingVertical: space[2],
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: fontSize.sm,
+                          fontWeight: fontWeight.semibold,
+                          color: active ? c.primary : c.textSecondary,
+                        }}
+                      >
+                        {unit === 'months' ? 'Meses' : 'Años'}
+                      </Text>
+                    </MotiView>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <PetInput
+              label={ageUnit === 'months' ? 'Meses (máx. 12)' : 'Años (máx. 20)'}
+              value={age}
+              onChangeText={handleAgeChange}
+              placeholder={ageUnit === 'months' ? 'Ej: 6' : 'Ej: 2'}
+              keyboardType="numeric"
+              leftIcon={<MaterialCommunityIcons name="calendar-outline" size={20} color={c.textMuted} />}
+            />
+          </View>
+        </MotiView>
+
+        {/* Size selector */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 240 }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[3], letterSpacing: 0.3 }}>
+            Tamaño
+          </Text>
+          <View style={{ flexDirection: 'row', gap: space[3] }}>
+            {SIZES.map((s) => {
+              const active = size === s.value;
+              return (
+                <Pressable key={s.value} onPress={() => setSize(s.value)} style={{ flex: 1 }}>
+                  <MotiView
+                    animate={{
+                      backgroundColor: active ? c.primaryLight : c.bgSurface,
+                      borderColor: active ? c.primary : c.border,
+                    }}
+                    transition={{ type: 'timing', duration: 160 }}
+                    style={{
+                      borderWidth: 1.5,
+                      borderRadius: radius.lg,
+                      paddingVertical: space[3],
+                      alignItems: 'center',
+                      gap: space[1],
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{s.emoji}</Text>
+                    <Text
+                      style={{
+                        fontSize: fontSize.sm,
+                        fontWeight: fontWeight.semibold,
+                        color: active ? c.primary : c.textSecondary,
+                      }}
+                    >
+                      {s.label}
+                    </Text>
+                  </MotiView>
+                </Pressable>
+              );
+            })}
+          </View>
+        </MotiView>
+
+        {/* Description */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 320 }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: fontWeight.semibold, color: c.textSecondary, marginBottom: space[2], letterSpacing: 0.3 }}>
+            Descripción (opcional)
+          </Text>
+          <MotiView
+            animate={{ borderColor: c.border }}
+            style={{
+              borderWidth: 1.5,
+              borderRadius: radius.lg,
+              backgroundColor: c.bgSurface,
+              padding: space[4],
+              minHeight: 110,
+            }}
+          >
+            <TextInput
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Cuéntanos sobre la personalidad y necesidades de la mascota..."
+              placeholderTextColor={c.textMuted}
+              multiline
+              numberOfLines={4}
+              style={{ fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22, textAlignVertical: 'top' }}
+            />
+          </MotiView>
+        </MotiView>
+
+        {/* Submit */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'spring', damping: 18, stiffness: 180, delay: 400 }}
+        >
+          <PetButton
+            label="Guardar mascota"
+            onPress={handleSave}
+            loading={saving}
+            icon={<MaterialCommunityIcons name="content-save" size={18} color="#fff" />}
+          />
+        </MotiView>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  aura1: { position: 'absolute', top: '-20%', left: '-30%', width: 500, height: 500, borderRadius: 250, backgroundColor: 'rgba(52,211,153,0.18)' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, backgroundColor: 'rgba(30,41,59,0.6)', borderBottomWidth: 1.2, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { flex: 1, color: '#ffffff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
-  form: { padding: 20, paddingBottom: 60, gap: 16 },
-  photoBox: { height: 180, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 4 },
-  photoPreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  photoHint: { color: '#64748b', fontSize: 13, marginTop: 8 },
-  label: { color: '#94a3b8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
-  input: { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, color: '#ffffff', fontSize: 15 },
-  textarea: { height: 100, textAlignVertical: 'top' },
-  sizeRow: { flexDirection: 'row', gap: 10 },
-  sizeBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.2, borderColor: 'rgba(255,255,255,0.08)', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)' },
-  sizeBtnActive: { borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)' },
-  sizeBtnText: { color: '#64748b', fontWeight: '600' },
-  sizeBtnTextActive: { color: '#34d399' },
-  saveBtn: { flexDirection: 'row', backgroundColor: '#34d399', borderRadius: 14, paddingVertical: 16, justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: '#34d399', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-});

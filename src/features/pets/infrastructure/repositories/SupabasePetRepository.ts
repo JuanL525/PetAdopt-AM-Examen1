@@ -39,17 +39,27 @@ export class SupabasePetRepository implements IPetRepository {
   }
 
   async createPet(dto: CreatePetDTO, shelterId: string): Promise<Pet> {
-    // Crear el cuarto de chat asociado a la mascota
-    const { data: roomData } = await supabase
+    // Crear la sala de chat vinculada a esta mascota
+    const { data: roomData, error: roomError } = await supabase
       .from('rooms')
-      .insert({ name: `Chat - ${dto.name}`, created_by: shelterId })
+      .insert({ name: `Chat · ${dto.name}`, created_by: shelterId })
       .select()
       .single();
 
+    if (roomError) {
+      console.warn('[createPet] No se pudo crear la sala de chat:', roomError.message);
+    }
+
     if (roomData) {
-      await supabase
+      const { error: memberError } = await supabase
         .from('room_members')
-        .upsert({ room_id: roomData.id, user_id: shelterId });
+        .upsert(
+          { room_id: roomData.id, user_id: shelterId },
+          { onConflict: 'room_id,user_id', ignoreDuplicates: true },
+        );
+      if (memberError) {
+        console.warn('[createPet] No se pudo unir al refugio a la sala:', memberError.message);
+      }
     }
 
     const { data, error } = await supabase
@@ -90,6 +100,7 @@ export class SupabasePetRepository implements IPetRepository {
     if (dto.size !== undefined) updates.size = dto.size;
     if (dto.description !== undefined) updates.description = dto.description;
     if (dto.status !== undefined) updates.status = dto.status;
+    if (dto.roomId !== undefined) updates.room_id = dto.roomId;
 
     const { data, error } = await supabase
       .from('pets')

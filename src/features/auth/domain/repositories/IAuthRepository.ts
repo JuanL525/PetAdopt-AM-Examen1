@@ -6,4 +6,5 @@ export interface IAuthRepository {
   logout(): Promise<void>;
   getCurrentUser(): Promise<User | null>;
   loginWithGoogle(): Promise<User>;
+  forgotPassword(email: string): Promise<void>;
 }

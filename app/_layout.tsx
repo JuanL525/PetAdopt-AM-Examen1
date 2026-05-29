@@ -80,11 +80,29 @@ export default function RootLayout() {
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
           if (session) {
             setLoading(true);
-            // Ejecutamos la tarea pesada en segundo plano
             syncUserProfile(session).finally(() => setLoading(false));
+          } else if (event === "INITIAL_SESSION") {
+            // En móvil SecureStore puede tardar — recuperar sesión antes de cerrar
+            setLoading(true);
+            supabase.auth.getSession().then(({ data: { session: recovered } }) => {
+              if (recovered) {
+                syncUserProfile(recovered).finally(() => setLoading(false));
+              } else if (!useAuthStore.getState().user) {
+                setUser(null);
+                setLoading(false);
+              } else {
+                console.warn("[_layout] INITIAL_SESSION null — keeping cached user");
+                setLoading(false);
+              }
+            });
           } else {
             setUser(null);
             setLoading(false);
+          }
+        } else if (event === "TOKEN_REFRESHED") {
+          if (session && !useAuthStore.getState().user) {
+            setLoading(true);
+            syncUserProfile(session).finally(() => setLoading(false));
           }
         } else if (event === "SIGNED_OUT") {
           setUser(null);
@@ -128,7 +146,26 @@ export default function RootLayout() {
           console.log(
             `[_layout] User sync successful: ${user?.username} (${user?.role})`
           );
-          setUser(user);
+          if (user) {
+            setUser(user);
+          } else {
+            // getCurrentUser falló pero tenemos sesión válida — usar fallback
+            const metadata = session?.user?.user_metadata || {};
+            const email = session?.user?.email || "";
+            const username =
+              metadata.full_name ||
+              metadata.name ||
+              email.split("@")[0] ||
+              "Usuario";
+            setUser({
+              id: session.user.id,
+              username,
+              role: "adoptante",
+              avatarUrl: metadata.avatarUrl || null,
+              createdAt: session.user.created_at || new Date().toISOString(),
+              email,
+            } as any);
+          }
         } catch (err: any) {
           // 3. ¡EL SALVAVIDAS! Si la BD falla o hace timeout, entramos nosotros
           console.error(

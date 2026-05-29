@@ -16,6 +16,12 @@ export class CreatePetUseCase {
     if (!dto.breed.trim()) {
       throw new AppError('VALIDATION_ERROR', 'La raza es obligatoria');
     }
+    if (/\d/.test(dto.breed)) {
+      throw new AppError('VALIDATION_ERROR', 'La raza no puede contener números');
+    }
+    if (!dto.photoUri && !dto.photoBase64) {
+      throw new AppError('VALIDATION_ERROR', 'La foto es obligatoria');
+    }
     if (dto.age < 0) {
       throw new AppError('VALIDATION_ERROR', 'La edad no puede ser negativa');
     }

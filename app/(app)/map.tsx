@@ -1,14 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, StatusBar,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MotiView } from 'moti';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import WebView from 'react-native-webview';
 import * as Location from 'expo-location';
 import { useAuthStore } from '@features/auth/presentation/store/authStore';
 import { useShelterMap } from '@features/map/presentation/hooks/useShelterMap';
+import { useColors, useThemeStore, space, radius, shadow, fontWeight, fontSize } from '@shared/design';
 
 function buildLeafletHTML(
   userLat: number | null,
@@ -54,6 +55,9 @@ function buildLeafletHTML(
       });`
     : '';
 
+  const primaryColor = '#FF5533';
+  const secondaryColor = '#1FA896';
+
   return `<!DOCTYPE html>
 <html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -61,8 +65,9 @@ function buildLeafletHTML(
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #090d16; }
+  body { background: #FAFAF8; }
   #map { width: 100vw; height: 100vh; }
+  .leaflet-popup-content-wrapper { border-radius: 12px; font-family: -apple-system, sans-serif; }
 </style>
 </head><body>
 <div id="map"></div>
@@ -75,18 +80,18 @@ function buildLeafletHTML(
   }).addTo(map);
 
   var shelterIcon = L.divIcon({
-    html: '<div style="background:#34d399;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)">🏠</div>',
-    iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20], className: ''
+    html: '<div style="background:${secondaryColor};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.25)">🏠</div>',
+    iconSize: [38, 38], iconAnchor: [19, 19], popupAnchor: [0, -22], className: ''
   });
 
   var userIcon = L.divIcon({
-    html: '<div style="background:#6366f1;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)">📍</div>',
-    iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20], className: ''
+    html: '<div style="background:${primaryColor};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.25)">📍</div>',
+    iconSize: [38, 38], iconAnchor: [19, 19], popupAnchor: [0, -22], className: ''
   });
 
   var selectedIcon = L.divIcon({
-    html: '<div style="background:#fbbf24;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4)">📌</div>',
-    iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20], className: ''
+    html: '<div style="background:#F59E0B;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.25)">📌</div>',
+    iconSize: [38, 38], iconAnchor: [19, 19], popupAnchor: [0, -22], className: ''
   });
 
   ${shelterMarkers}
@@ -100,6 +105,7 @@ function buildLeafletHTML(
 
 export default function MapScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const { shelters, isLoading, loadShelters, saveMyLocation } = useShelterMap();
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -107,6 +113,8 @@ export default function MapScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const isRefugio = user?.role === 'refugio';
+  const c = useColors();
+  const isDark = useThemeStore((s) => s.isDark);
 
   useEffect(() => {
     loadShelters();
@@ -117,25 +125,14 @@ export default function MapScreen() {
     setLocationLoading(true);
     try {
       const servicesOn = await Location.hasServicesEnabledAsync();
-      if (!servicesOn) {
-        console.warn('[Map] Location services disabled');
-        return;
-      }
+      if (!servicesOn) return;
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('[Map] Location permission denied');
-        return;
-      }
-      // Timeout para evitar que se quede colgado si el GPS no responde
+      if (status !== 'granted') return;
       const pos = await Promise.race([
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
       ]);
-      if (pos) {
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      } else {
-        console.warn('[Map] Location request timed out');
-      }
+      if (pos) setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     } catch (e) {
       console.warn('[Map] Location error:', e);
     } finally {
@@ -146,16 +143,13 @@ export default function MapScreen() {
   const handleSaveLocation = async () => {
     const loc = selectedLocation ?? userLocation;
     if (!loc) {
-      Alert.alert(
-        'Elige una ubicación',
-        'Toca un punto en el mapa para marcar tu refugio, o usa el botón de GPS para usar tu ubicación actual.'
-      );
+      Alert.alert('Elige una ubicación', 'Toca un punto en el mapa para marcar tu refugio, o usa el GPS.');
       return;
     }
     setSaving(true);
     try {
       await saveMyLocation(loc.lat, loc.lng);
-      Alert.alert('¡Listo!', 'La ubicación de tu refugio fue guardada. Ahora los adoptantes podrán verla en el mapa.');
+      Alert.alert('¡Listo!', 'La ubicación de tu refugio fue guardada.');
       setSelectedLocation(null);
       loadShelters();
     } catch (e: any) {
@@ -175,28 +169,81 @@ export default function MapScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <View style={{ flex: 1, backgroundColor: c.bgPage }}>
+      <StatusBar style={isDark ? "light" : "dark"} />
 
       {/* Header overlay */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color="#ffffff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Refugios Cercanos</Text>
-        <TouchableOpacity onPress={requestLocation} style={styles.locateBtn} disabled={locationLoading}>
-          {locationLoading
-            ? <ActivityIndicator size="small" color="#60a5fa" />
-            : <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#60a5fa" />
-          }
-        </TouchableOpacity>
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: space[5],
+          paddingTop: insets.top + space[3],
+          paddingBottom: space[4],
+          backgroundColor: 'rgba(250,250,248,0.95)',
+          borderBottomWidth: 1,
+          borderBottomColor: c.border,
+          gap: space[3],
+          ...shadow.sm,
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: radius.full,
+              backgroundColor: c.bgSubtle,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: c.border,
+            }}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={20} color={c.textPrimary} />
+          </View>
+        </Pressable>
+
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: fontSize.base, fontWeight: fontWeight.bold, color: c.textPrimary }}>
+            Refugios Cercanos
+          </Text>
+          <Text style={{ fontSize: fontSize.xs, color: c.textMuted }}>
+            {shelters.length} refugios registrados
+          </Text>
+        </View>
+
+        <Pressable onPress={requestLocation} disabled={locationLoading} hitSlop={8}>
+          <View
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: radius.full,
+              backgroundColor: c.secondaryLight,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: c.secondary + '44',
+            }}
+          >
+            {locationLoading
+              ? <ActivityIndicator size="small" color={c.secondary} />
+              : <MaterialCommunityIcons name="crosshairs-gps" size={20} color={c.secondary} />
+            }
+          </View>
+        </Pressable>
       </View>
 
-      {/* Map siempre se renderiza; el spinner es solo un overlay */}
+      {/* Map */}
       <WebView
         key={html.length + (userLocation ? 'u' : '') + (selectedLocation ? 's' : '') + shelters.length}
         source={{ html }}
-        style={styles.map}
+        style={{ flex: 1 }}
         javaScriptEnabled
         originWhitelist={['*']}
         scrollEnabled={false}
@@ -210,62 +257,117 @@ export default function MapScreen() {
         }}
       />
 
+      {/* Loading overlay */}
       {isLoading && (
-        <View style={styles.loadingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color="#34d399" />
-          <Text style={styles.loadingText}>Cargando refugios...</Text>
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: space[3],
+            backgroundColor: 'rgba(250,250,248,0.75)',
+          }}
+          pointerEvents="none"
+        >
+          <ActivityIndicator size="large" color={c.primary} />
+          <Text style={{ fontSize: fontSize.sm, color: c.textMuted }}>Cargando refugios...</Text>
         </View>
       )}
 
-      {/* Hint para el refugio */}
+      {/* Refugio hint */}
       {isRefugio && (
-        <View style={styles.hintBox} pointerEvents="none">
-          <MaterialCommunityIcons name="gesture-tap" size={16} color="#fbbf24" />
-          <Text style={styles.hintText}>Toca el mapa para marcar tu refugio</Text>
-        </View>
+        <MotiView
+          from={{ opacity: 0, translateY: -8 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: 'timing', duration: 300, delay: 500 }}
+          style={{
+            position: 'absolute',
+            top: insets.top + 72,
+            alignSelf: 'center',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space[2],
+            backgroundColor: '#FFFBEB',
+            paddingHorizontal: space[4],
+            paddingVertical: space[2],
+            borderRadius: radius.full,
+            borderWidth: 1,
+            borderColor: '#FDE68A',
+            ...shadow.sm,
+          }}
+          pointerEvents="none"
+        >
+          <MaterialCommunityIcons name="gesture-tap" size={16} color={c.warning} />
+          <Text style={{ fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: c.warning }}>
+            Toca el mapa para marcar tu refugio
+          </Text>
+        </MotiView>
       )}
 
-      {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>🏠</Text>
-          <Text style={styles.legendText}>Refugios ({shelters.length})</Text>
+      {/* Bottom legend */}
+      <View
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: 'rgba(250,250,248,0.97)',
+          padding: space[5],
+          paddingBottom: insets.bottom + space[5],
+          flexDirection: 'row',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: space[4],
+          borderTopWidth: 1,
+          borderTopColor: c.border,
+          ...shadow.lg,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+          <Text style={{ fontSize: 18 }}>🏠</Text>
+          <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: c.textSecondary }}>
+            Refugios ({shelters.length})
+          </Text>
         </View>
-        <View style={styles.legendItem}>
-          <Text style={styles.legendIcon}>📍</Text>
-          <Text style={styles.legendText}>Tú</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+          <Text style={{ fontSize: 18 }}>📍</Text>
+          <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: c.textSecondary }}>
+            Tú
+          </Text>
         </View>
+
         {isRefugio && (
-          <TouchableOpacity style={styles.saveBtn} onPress={handleSaveLocation} disabled={saving}>
-            {saving
-              ? <ActivityIndicator size="small" color="#ffffff" />
-              : <>
-                  <MaterialCommunityIcons name="map-marker-plus" size={16} color="#ffffff" />
-                  <Text style={styles.saveBtnText}>Guardar mi refugio</Text>
-                </>
-            }
-          </TouchableOpacity>
+          <Pressable onPress={handleSaveLocation} disabled={saving} style={{ marginLeft: 'auto' }}>
+            <MotiView
+              animate={{ opacity: saving ? 0.6 : 1 }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space[2],
+                backgroundColor: c.secondary,
+                paddingHorizontal: space[4],
+                paddingVertical: space[2],
+                borderRadius: radius.lg,
+                ...shadow.sm,
+              }}
+            >
+              {saving
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <>
+                    <MaterialCommunityIcons name="map-marker-plus" size={16} color="#fff" />
+                    <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: '#fff' }}>
+                      Guardar mi refugio
+                    </Text>
+                  </>
+              }
+            </MotiView>
+          </Pressable>
         )}
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090d16' },
-  header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 16, backgroundColor: 'rgba(9,13,22,0.85)', borderBottomWidth: 1.2, borderBottomColor: 'rgba(255,255,255,0.08)' },
-  backBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { flex: 1, color: '#ffffff', fontSize: 18, fontWeight: '700', marginLeft: 8 },
-  locateBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  map: { flex: 1 },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', gap: 16, backgroundColor: 'rgba(9,13,22,0.6)' },
-  loadingText: { color: '#94a3b8', fontSize: 15 },
-  hintBox: { position: 'absolute', top: 120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(9,13,22,0.9)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)' },
-  hintText: { color: '#fbbf24', fontSize: 12, fontWeight: '600' },
-  legend: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(9,13,22,0.9)', padding: 16, paddingBottom: 30, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendIcon: { fontSize: 18 },
-  legendText: { color: '#94a3b8', fontSize: 13, fontWeight: '600' },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#34d399', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, marginLeft: 'auto', minWidth: 140, justifyContent: 'center' },
-  saveBtnText: { color: '#ffffff', fontSize: 12, fontWeight: '700' },
-});

@@ -12,7 +12,7 @@ interface LottieAnimationProps {
 
 export function LottieAnimation({
   source,
-  size = 120,
+  size = 200,
   loop = true,
   style,
   autoPlay = true,

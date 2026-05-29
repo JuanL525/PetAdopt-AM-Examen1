@@ -82,7 +82,7 @@ export default function AdoptionsScreen() {
 
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <LottieAnimation source={loadingAnimation} size={140} loop />
+          <LottieAnimation source={loadingAnimation} size={220} loop />
         </View>
       ) : (
         <FlatList
@@ -94,7 +94,7 @@ export default function AdoptionsScreen() {
           onRefresh={loadRequests}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: space[8], gap: space[4] }}>
-              <LottieAnimation source={emptyAnimation} size={180} loop />
+              <LottieAnimation source={emptyAnimation} size={260} loop />
               <PetText variant="h3" align="center">
                 {isRefugio ? 'Sin solicitudes aún' : 'No tienes solicitudes'}
               </PetText>

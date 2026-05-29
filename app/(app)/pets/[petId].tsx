@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, Image, ActivityIndicator, Alert, TextInput, Modal,
+  Keyboard, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -44,7 +45,25 @@ export default function PetDetailScreen() {
   const [showRequestSuccess, setShowRequestSuccess] = useState(false);
   const [adoptMessage, setAdoptMessage] = useState('');
   const [adopting, setAdopting] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const isAdoptante = user?.role === 'adoptante';
+
+  useEffect(() => {
+    if (!showAdoptModal) {
+      setKeyboardInset(0);
+      return;
+    }
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardInset(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardInset(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [showAdoptModal]);
 
   useEffect(() => {
     if (petId) {
@@ -117,7 +136,7 @@ export default function PetDetailScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: c.bgPage, justifyContent: 'center', alignItems: 'center' }}>
-        <LottieAnimation source={loadingAnimation} size={140} loop />
+        <LottieAnimation source={loadingAnimation} size={220} loop />
       </View>
     );
   }
@@ -350,7 +369,7 @@ export default function PetDetailScreen() {
       {/* Success modal — solicitud enviada */}
       <Modal visible={showRequestSuccess} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: isDark ? 'rgba(15,15,13,0.96)' : 'rgba(250,250,248,0.97)', justifyContent: 'center', alignItems: 'center', gap: space[4], padding: space[6] }}>
-          <LottieAnimation source={successAnimation} size={200} loop={false} autoPlay />
+          <LottieAnimation source={successAnimation} size={280} loop={false} autoPlay />
           <PetText variant="h2" align="center">¡Solicitud enviada!</PetText>
           <PetText variant="body" align="center">
             El refugio revisará tu solicitud para adoptar a {pet?.name}. Te avisaremos cuando tengan una respuesta.
@@ -360,60 +379,73 @@ export default function PetDetailScreen() {
 
       {/* Adopt Modal */}
       <Modal visible={showAdoptModal} transparent animationType="slide">
-        <View style={{ flex: 1, backgroundColor: 'rgba(45,55,72,0.6)', justifyContent: 'flex-end' }}>
-          <MotiView
-            from={{ translateY: 200 }}
-            animate={{ translateY: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 220 }}
-            style={{
-              backgroundColor: c.bgSurface,
-              borderTopLeftRadius: radius['2xl'],
-              borderTopRightRadius: radius['2xl'],
-              padding: space[6],
-              paddingBottom: insets.bottom + space[6],
-              gap: space[4],
-              borderTopWidth: 1,
-              borderColor: c.border,
-            }}
+        <KeyboardAvoidingView
+          style={{ flex: 1, backgroundColor: 'rgba(45,55,72,0.6)', justifyContent: 'flex-end' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom : 0}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setShowAdoptModal(false)} />
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' }}
+            bounces={false}
           >
-            <Text style={{ fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: c.textPrimary }}>
-              Solicitar adopción de {pet.name}
-            </Text>
-            <Text style={{ fontSize: fontSize.sm, color: c.textMuted }}>
-              Escribe un mensaje al refugio (opcional)
-            </Text>
-
-            <View
+            <MotiView
+              from={{ translateY: 200 }}
+              animate={{ translateY: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 220 }}
               style={{
-                borderWidth: 1.5,
-                borderRadius: radius.lg,
+                backgroundColor: c.bgSurface,
+                borderTopLeftRadius: radius['2xl'],
+                borderTopRightRadius: radius['2xl'],
+                padding: space[6],
+                paddingBottom: insets.bottom + space[6] + keyboardInset,
+                gap: space[4],
+                borderTopWidth: 1,
                 borderColor: c.border,
-                backgroundColor: c.bgSubtle,
-                padding: space[4],
-                minHeight: 100,
               }}
             >
-              <TextInput
-                value={adoptMessage}
-                onChangeText={setAdoptMessage}
-                placeholder="Cuéntanos por qué quieres adoptar a esta mascota..."
-                placeholderTextColor={c.textMuted}
-                multiline
-                numberOfLines={4}
-                style={{ fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22, textAlignVertical: 'top' }}
-              />
-            </View>
+              <Text style={{ fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: c.textPrimary }}>
+                Solicitar adopción de {pet.name}
+              </Text>
+              <Text style={{ fontSize: fontSize.sm, color: c.textMuted }}>
+                Escribe un mensaje al refugio (opcional)
+              </Text>
 
-            <View style={{ flexDirection: 'row', gap: space[3] }}>
-              <View style={{ flex: 1 }}>
-                <PetButton label="Cancelar" onPress={() => setShowAdoptModal(false)} variant="outline" />
+              <View
+                style={{
+                  borderWidth: 1.5,
+                  borderRadius: radius.lg,
+                  borderColor: c.border,
+                  backgroundColor: c.bgSubtle,
+                  padding: space[4],
+                  minHeight: 100,
+                  maxHeight: 160,
+                }}
+              >
+                <TextInput
+                  value={adoptMessage}
+                  onChangeText={setAdoptMessage}
+                  placeholder="Cuéntanos por qué quieres adoptar a esta mascota..."
+                  placeholderTextColor={c.textMuted}
+                  multiline
+                  numberOfLines={4}
+                  style={{ fontSize: fontSize.base, color: c.textPrimary, lineHeight: 22, textAlignVertical: 'top', minHeight: 72 }}
+                />
               </View>
-              <View style={{ flex: 2 }}>
-                <PetButton label="Enviar solicitud" onPress={handleAdopt} loading={adopting} />
+
+              <View style={{ flexDirection: 'row', gap: space[3] }}>
+                <View style={{ flex: 1 }}>
+                  <PetButton label="Cancelar" onPress={() => setShowAdoptModal(false)} variant="outline" />
+                </View>
+                <View style={{ flex: 2 }}>
+                  <PetButton label="Enviar solicitud" onPress={handleAdopt} loading={adopting} />
+                </View>
               </View>
-            </View>
-          </MotiView>
-        </View>
+            </MotiView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

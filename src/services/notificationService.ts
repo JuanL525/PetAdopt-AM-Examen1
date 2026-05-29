@@ -1,5 +1,4 @@
-import * as Device from 'expo-device';
-import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 let NotificationsModule: typeof import('expo-notifications') | null = null;
 
@@ -25,14 +24,23 @@ async function getNotifications(): Promise<typeof import('expo-notifications') |
   return NotificationsModule;
 }
 
+async function ensureAndroidChannel(Notifications: typeof import('expo-notifications')) {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'PetAdopt',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#FF5533',
+    sound: 'default',
+  });
+}
+
 export async function registerForNotificationsAsync() {
   try {
     const Notifications = await getNotifications();
     if (!Notifications) return null;
 
-    if (!Device.isDevice) {
-      console.warn('Notifications: not a physical device, but continuing for local notifications setup');
-    }
+    await ensureAndroidChannel(Notifications);
 
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -54,6 +62,7 @@ export async function registerForNotificationsAsync() {
   }
 }
 
+/** Notificación local inmediata (Supabase Realtime → scheduleNotificationAsync) */
 export async function sendMessageNotification(
   senderName: string,
   roomId: string,

@@ -560,57 +560,65 @@ export default function AdoptanteHome() {
       </ScrollView>
 
       {/* ── Grid ─────────────────────────────────────────────────────── */}
-      {loading && pets.length === 0 ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <LottieAnimation source={loadingAnimation} size={140} loop />
-        </View>
-      ) : filtered.length === 0 ? (
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            gap: space[3],
-            paddingHorizontal: space[8],
-          }}
-        >
-          <LottieAnimation
-            source={emptyAnimation}
-            size={filter === "all" || filter === "available" ? 180 : 120}
-            loop
-          />
-          <Text style={{ fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: c.textPrimary }}>
-            {filter === "pending"
-              ? "Sin solicitudes en proceso"
-              : filter === "adopted"
-              ? "Aún no has adoptado"
-              : "Sin resultados"}
-          </Text>
-          <Text style={{ fontSize: fontSize.sm, color: c.textMuted, textAlign: "center" }}>
-            {search
-              ? "Prueba otra búsqueda"
-              : filter === "pending"
-              ? "Cuando solicites adoptar una mascota, aparecerá aquí mientras el refugio la revisa."
-              : filter === "adopted"
-              ? "Las mascotas que el refugio te apruebe aparecerán aquí."
-              : "Aún no hay mascotas disponibles"}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(p) => p.id}
-          numColumns={2}
-          contentContainerStyle={{ padding: space[3], paddingBottom: 120 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={handleRefresh} tintColor={c.primary} />
-          }
-          renderItem={({ item, index }) => (
-            <PetCard pet={item} index={index} myRequestStatus={myRequestByPet[item.id]} />
-          )}
-        />
-      )}
+      <FlatList
+        data={filtered}
+        keyExtractor={(p) => p.id}
+        numColumns={2}
+        contentContainerStyle={{
+          padding: filtered.length > 0 ? space[3] : 0,
+          paddingBottom: 120,
+          flexGrow: 1,
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={handleRefresh} tintColor={c.primary} colors={[c.primary]} />
+        }
+        ListEmptyComponent={
+          <View
+            style={{
+              flex: 1,
+              width: "100%",
+              minHeight: 420,
+              justifyContent: "center",
+              alignItems: "center",
+              gap: space[3],
+              paddingHorizontal: space[8],
+              paddingTop: space[6],
+            }}
+          >
+            {loading && pets.length === 0 ? (
+              <LottieAnimation source={loadingAnimation} size={220} loop />
+            ) : (
+              <>
+                <LottieAnimation
+                  source={emptyAnimation}
+                  size={filter === "all" || filter === "available" ? 260 : 240}
+                  loop
+                />
+                <Text style={{ fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: c.textPrimary }}>
+                  {filter === "pending"
+                    ? "Sin solicitudes en proceso"
+                    : filter === "adopted"
+                    ? "Aún no has adoptado"
+                    : "Sin resultados"}
+                </Text>
+                <Text style={{ fontSize: fontSize.sm, color: c.textMuted, textAlign: "center" }}>
+                  {search
+                    ? "Prueba otra búsqueda"
+                    : filter === "pending"
+                    ? "Cuando solicites adoptar una mascota, aparecerá aquí mientras el refugio la revisa."
+                    : filter === "adopted"
+                    ? "Las mascotas que el refugio te apruebe aparecerán aquí."
+                    : "Aún no hay mascotas disponibles. Desliza hacia abajo para actualizar."}
+                </Text>
+              </>
+            )}
+          </View>
+        }
+        renderItem={({ item, index }) => (
+          <PetCard pet={item} index={index} myRequestStatus={myRequestByPet[item.id]} />
+        )}
+      />
 
       {/* ── FABs ─────────────────────────────────────────────────────── */}
       <MotiView

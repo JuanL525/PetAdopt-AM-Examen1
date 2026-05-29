@@ -11,8 +11,8 @@ import {
   useSegments,
 } from "expo-router";
 import { useEffect, useRef } from "react";
-import { Client as AppwriteClient } from "react-native-appwrite";
 import { authRepository } from "../src/di/container";
+import { getActiveRoomId } from "../src/services/activeChatRoom";
 import {
   getExpoNotifications,
   registerForNotificationsAsync,
@@ -48,11 +48,6 @@ if (!globalObj.localStorage) {
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
 });
-
-const appwriteClient = new AppwriteClient()
-  .setEndpoint(process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT || "")
-  .setProject(process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID || "")
-  .setPlatform("host.exp.exponent");
 
 export default function RootLayout() {
   const { user, isLoading, setUser, setLoading } = useAuthStore();
@@ -301,144 +296,113 @@ export default function RootLayout() {
     };
   }, [rootNavigationState?.key]);
 
-  // Suscripción Global en tiempo real para Notificaciones Locales (Soporta Supabase y Appwrite)
+  // Notificaciones locales vía Supabase Realtime (app en primer plano)
   useEffect(() => {
     if (!user) return;
 
-    if (authRepository instanceof AppwriteAuthRepository) {
-      const DB_ID = process.env.EXPO_PUBLIC_APPWRITE_DB_ID!;
-      const unsubscribe = appwriteClient.subscribe(
-        `databases.${DB_ID}.collections.messages.documents`,
-        async (response) => {
-          if (
-            response.events.includes(
-              "databases.*.collections.*.documents.*.create"
-            )
-          ) {
-            const payload = response.payload as any;
-            if (payload.user_id === user.id) return;
+    const channel = supabase
+      .channel("global-chat-notifications")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        async (payload) => {
+          if (!payload.new || payload.new.user_id === user.id) return;
+          if (getActiveRoomId() === payload.new.room_id) return;
 
-            const inThisChat =
-              segments[0] === "(app)" &&
-              segments[1] === "chat" &&
-              segments[2] === payload.room_id;
+          try {
+            const { data: senderData } = await supabase
+              .from("profiles")
+              .select("username")
+              .eq("id", payload.new.user_id)
+              .single();
 
-            if (inThisChat) return;
-
-            const senderName = payload.username ?? "Otro Usuario";
+            const senderName = senderData?.username ?? "Otro Usuario";
             await sendMessageNotification(
               senderName,
-              payload.room_id,
-              payload.content
+              payload.new.room_id,
+              payload.new.content
             );
+          } catch (err) {
+            console.warn("Error fetching sender profile for notification:", err);
           }
         }
-      );
-      return () => {
-        unsubscribe();
-      };
-    } else {
-      const channel = supabase
-        .channel("global-chat-notifications")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "messages",
-          },
-          async (payload) => {
-            if (!payload.new || payload.new.user_id === user.id) return;
+      )
+      .subscribe();
 
-            // Evitar notificar si el usuario ya está viendo activamente este chat
-            const inThisChat =
-              segments[0] === "(app)" &&
-              segments[1] === "chat" &&
-              segments[2] === payload.new.room_id;
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
-            if (inThisChat) return;
-
-            try {
-              // Consultar el perfil del remitente para mostrar su nombre de usuario
-              const { data: senderData } = await supabase
-                .from("profiles")
-                .select("username")
-                .eq("id", payload.new.user_id)
-                .single();
-
-              const senderName = senderData?.username ?? "Otro Usuario";
-              await sendMessageNotification(
-                senderName,
-                payload.new.room_id,
-                payload.new.content
-              );
-            } catch (err) {
-              console.warn(
-                "Error fetching sender profile for notification:",
-                err
-              );
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user, segments]);
-
-  // Suscripción Global para Notificaciones de Solicitudes de Adopción
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
       .channel(`adoption-notifications-${user.id}`)
       .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'adoption_requests', filter: `shelter_id=eq.${user.id}` },
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "adoption_requests",
+          filter: `shelter_id=eq.${user.id}`,
+        },
         async (payload) => {
-          // Notificar al refugio cuando recibe una nueva solicitud
-          if (user.role !== 'refugio') return;
+          if (user.role !== "refugio") return;
           try {
             const { data: adopterData } = await supabase
-              .from('profiles')
-              .select('username')
-              .eq('id', payload.new.adopter_id)
+              .from("profiles")
+              .select("username")
+              .eq("id", payload.new.adopter_id)
               .single();
             const { data: petData } = await supabase
-              .from('pets')
-              .select('name')
-              .eq('id', payload.new.pet_id)
+              .from("pets")
+              .select("name")
+              .eq("id", payload.new.pet_id)
               .single();
             await sendAdoptionNotification(
-              `Nueva solicitud de adopción`,
-              `${adopterData?.username ?? 'Un adoptante'} quiere adoptar a ${petData?.name ?? 'tu mascota'}`,
+              "Nueva solicitud de adopción",
+              `${adopterData?.username ?? "Un adoptante"} quiere adoptar a ${petData?.name ?? "tu mascota"}`,
               payload.new.id
             );
           } catch (err) {
-            console.warn('Error sending adoption notification:', err);
+            console.warn("Error sending adoption notification:", err);
           }
         }
       )
       .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'adoption_requests', filter: `adopter_id=eq.${user.id}` },
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "adoption_requests",
+          filter: `adopter_id=eq.${user.id}`,
+        },
         async (payload) => {
-          // Notificar al adoptante cuando cambia el estado de su solicitud
-          if (user.role !== 'adoptante') return;
-          if (payload.new.status === 'approved' || payload.new.status === 'rejected') {
-            const statusMsg = payload.new.status === 'approved' ? '¡Aprobada! 🎉 El refugio aceptó tu solicitud' : 'Rechazada. El refugio no pudo aprobar tu solicitud';
-            try {
-              const { data: petData } = await supabase.from('pets').select('name').eq('id', payload.new.pet_id).single();
-              await sendAdoptionNotification(
-                `Solicitud ${payload.new.status === 'approved' ? 'aprobada' : 'rechazada'}`,
-                `${petData?.name ?? 'Mascota'}: ${statusMsg}`,
-                payload.new.id
-              );
-            } catch (err) {
-              console.warn('Error sending status notification:', err);
-            }
+          if (user.role !== "adoptante") return;
+          if (
+            payload.new.status !== "approved" &&
+            payload.new.status !== "rejected"
+          ) {
+            return;
+          }
+          const statusMsg =
+            payload.new.status === "approved"
+              ? "¡Aprobada! 🎉 El refugio aceptó tu solicitud"
+              : "Rechazada. El refugio no pudo aprobar tu solicitud";
+          try {
+            const { data: petData } = await supabase
+              .from("pets")
+              .select("name")
+              .eq("id", payload.new.pet_id)
+              .single();
+            await sendAdoptionNotification(
+              `Solicitud ${payload.new.status === "approved" ? "aprobada" : "rechazada"}`,
+              `${petData?.name ?? "Mascota"}: ${statusMsg}`,
+              payload.new.id
+            );
+          } catch (err) {
+            console.warn("Error sending status notification:", err);
           }
         }
       )

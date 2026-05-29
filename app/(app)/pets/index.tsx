@@ -119,7 +119,7 @@ export default function PetsListScreen() {
 
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <LottieAnimation source={loadingAnimation} size={140} loop />
+          <LottieAnimation source={loadingAnimation} size={220} loop />
         </View>
       ) : (
         <FlatList
@@ -131,7 +131,7 @@ export default function PetsListScreen() {
           onRefresh={loadPets}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', paddingTop: space[12], gap: space[4] }}>
-              <LottieAnimation source={emptyAnimation} size={150} loop />
+              <LottieAnimation source={emptyAnimation} size={260} loop />
               <PetText variant="h3" align="center">No hay mascotas</PetText>
               {isRefugio && (
                 <View style={{ width: 220 }}>

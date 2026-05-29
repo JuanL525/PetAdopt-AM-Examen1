@@ -85,11 +85,11 @@ export default function ChatsScreen() {
 
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <LottieAnimation source={loadingAnimation} size={140} loop />
+          <LottieAnimation source={loadingAnimation} size={220} loop />
         </View>
       ) : pets.length === 0 ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: space[3], paddingHorizontal: space[8] }}>
-          <LottieAnimation source={emptyAnimation} size={180} loop />
+          <LottieAnimation source={emptyAnimation} size={260} loop />
           <PetText variant="h3" align="center">Sin chats activos</PetText>
           <PetText variant="body" align="center">
             Los chats aparecen cuando registras mascotas. Los adoptantes podrán escribirte desde el detalle de cada mascota.

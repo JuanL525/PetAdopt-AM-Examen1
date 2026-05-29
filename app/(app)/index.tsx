@@ -34,7 +34,7 @@ export default function AppIndex() {
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.bgPage }}>
-      <LottieAnimation source={loadingAnimation} size={140} loop />
+      <LottieAnimation source={loadingAnimation} size={220} loop />
     </View>
   );
 }

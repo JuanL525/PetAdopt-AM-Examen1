@@ -108,7 +108,7 @@ export default function AdoptionDetailScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: c.bgPage, justifyContent: 'center', alignItems: 'center' }}>
-        <LottieAnimation source={loadingAnimation} size={140} loop />
+        <LottieAnimation source={loadingAnimation} size={220} loop />
       </View>
     );
   }
@@ -281,7 +281,7 @@ export default function AdoptionDetailScreen() {
       {/* Success modal */}
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={{ flex: 1, backgroundColor: 'rgba(250,250,248,0.97)', justifyContent: 'center', alignItems: 'center', gap: space[4] }}>
-          <LottieAnimation source={successAnimation} size={160} loop={false} autoPlay />
+          <LottieAnimation source={successAnimation} size={280} loop={false} autoPlay />
           <PetText variant="h2" align="center">¡Solicitud aprobada! 🎉</PetText>
           <PetText variant="body" align="center">El adoptante recibirá una notificación.</PetText>
         </View>

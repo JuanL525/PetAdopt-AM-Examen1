@@ -7,23 +7,41 @@
   ⚠️ NO uses {{ .ConfirmationURL }} — Gmail/Outlook abren ese enlace de supabase.co
   en segundo plano y queman el token. Usa enlace directo a Vercel:
 -->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FAFAF8;margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<style type="text/css">
+  :root { color-scheme: light only; supported-color-schemes: light; }
+  body, .email-bg { background-color: #FAFAF8 !important; }
+  .email-card { background-color: #FFFFFF !important; }
+  .email-hero { background-color: #FF5533 !important; }
+  .email-title, .email-text, .email-text strong { color: #2E2E28 !important; }
+  .email-muted { color: #71716A !important; }
+  .email-footer { color: #9A9A90 !important; }
+  .email-notice { background-color: #F4F4F0 !important; color: #71716A !important; }
+  @media (prefers-color-scheme: dark) {
+    body, .email-bg { background-color: #FAFAF8 !important; }
+    .email-card { background-color: #FFFFFF !important; }
+    .email-hero { background-color: #FF5533 !important; }
+    .email-title { color: #2E2E28 !important; }
+    .email-text, .email-muted, .email-footer, .email-notice { color: #71716A !important; }
+    .email-text strong { color: #2E2E28 !important; }
+  }
+</style>
+<table role="presentation" class="email-bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FAFAF8" style="background-color:#FAFAF8;margin:0;padding:32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <tr>
-    <td align="center">
+    <td align="center" bgcolor="#FAFAF8" style="background-color:#FAFAF8;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:440px;">
 
         <!-- Hero coral -->
         <tr>
-          <td align="center" style="background-color:#FF5533;border-radius:20px 20px 0 0;padding:32px 28px 28px;">
+          <td class="email-hero" align="center" bgcolor="#FF5533" style="background-color:#FF5533;border-radius:20px 20px 0 0;padding:32px 28px 28px;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td align="center" style="width:56px;height:56px;background-color:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.35);border-radius:9999px;font-size:28px;line-height:56px;text-align:center;">
+                <td align="center" bgcolor="#FF5533" style="width:56px;height:56px;background-color:#FF5533;border:2px solid rgba(255,255,255,0.35);border-radius:9999px;font-size:28px;line-height:56px;text-align:center;">
                   🐾
                 </td>
               </tr>
             </table>
-            <p style="margin:12px 0 0;font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-0.3px;">PetAdopt</p>
-            <p style="margin:8px 0 0;display:inline-block;padding:4px 12px;background-color:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.92);letter-spacing:0.4px;text-transform:uppercase;">
+            <p style="margin:12px 0 0;font-size:22px;font-weight:700;color:#FFFFFF !important;letter-spacing:-0.3px;">PetAdopt</p>
+            <p style="margin:8px 0 0;display:inline-block;padding:4px 12px;background-color:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.25);border-radius:9999px;font-size:11px;font-weight:600;color:#FFFFFF !important;letter-spacing:0.4px;text-transform:uppercase;">
               Confirmar cuenta
             </p>
           </td>
@@ -31,23 +49,23 @@
 
         <!-- Card -->
         <tr>
-          <td style="background-color:#FFFFFF;border:1px solid #E2E2DB;border-top:none;border-radius:0 0 20px 20px;padding:32px 28px;box-shadow:0 4px 16px rgba(26,26,22,0.08);">
-            <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#2E2E28;letter-spacing:-0.2px;">
+          <td class="email-card" bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #E2E2DB;border-top:none;border-radius:0 0 20px 20px;padding:32px 28px;box-shadow:0 4px 16px rgba(26,26,22,0.08);">
+            <h2 class="email-title" style="margin:0 0 12px;font-size:20px;font-weight:700;color:#2E2E28 !important;letter-spacing:-0.2px;">
               Confirma tu cuenta
             </h2>
-            <p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#71716A;">
-              ¡Bienvenido a <strong style="color:#2E2E28;">PetAdopt</strong>! Estás a un paso de encontrar a tu próxima mascota o ayudar a un refugio.
+            <p class="email-text email-muted" style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#71716A !important;">
+              ¡Bienvenido a <strong style="color:#2E2E28 !important;">PetAdopt</strong>! Estás a un paso de encontrar a tu próxima mascota o ayudar a un refugio.
             </p>
-            <p style="margin:0 0 28px;font-size:15px;line-height:1.55;color:#71716A;">
+            <p class="email-text email-muted" style="margin:0 0 28px;font-size:15px;line-height:1.55;color:#71716A !important;">
               Haz clic en el botón para confirmar tu correo y activar tu cuenta. El enlace expira en 1 hora y solo puede usarse una vez.
             </p>
 
             <!-- Botón -->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
               <tr>
-                <td align="center" style="padding:0 0 28px;">
+                <td align="center" bgcolor="#FFFFFF" style="padding:0 0 28px;background-color:#FFFFFF;">
                   <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email"
-                     style="display:inline-block;background-color:#FF5533;color:#FFFFFF;padding:15px 32px;border-radius:16px;text-decoration:none;font-size:16px;font-weight:700;letter-spacing:0.2px;box-shadow:0 8px 24px rgba(255,85,51,0.22);">
+                     style="display:inline-block;background-color:#FF5533 !important;color:#FFFFFF !important;padding:15px 32px;border-radius:16px;text-decoration:none;font-size:16px;font-weight:700;letter-spacing:0.2px;box-shadow:0 8px 24px rgba(255,85,51,0.22);">
                     Confirmar cuenta
                   </a>
                 </td>
@@ -57,18 +75,18 @@
             <!-- Aviso -->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
               <tr>
-                <td style="background-color:#F4F4F0;border:1px solid #E2E2DB;border-radius:16px;padding:14px 16px;">
-                  <p style="margin:0;font-size:13px;line-height:1.6;color:#71716A;">
+                <td class="email-notice" bgcolor="#F4F4F0" style="background-color:#F4F4F0;border:1px solid #E2E2DB;border-radius:16px;padding:14px 16px;">
+                  <p style="margin:0;font-size:13px;line-height:1.6;color:#71716A !important;">
                     Si no creaste una cuenta en PetAdopt, puedes ignorar este correo de forma segura.
                   </p>
                 </td>
               </tr>
             </table>
 
-            <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#9A9A90;text-align:center;">
+            <p class="email-footer" style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#9A9A90 !important;text-align:center;">
               Plataforma de adopción de mascotas
             </p>
-            <p style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#9A9A90;text-align:center;">
+            <p class="email-footer" style="margin:8px 0 0;font-size:12px;line-height:1.5;color:#9A9A90 !important;text-align:center;">
               — Equipo PetAdopt
             </p>
           </td>

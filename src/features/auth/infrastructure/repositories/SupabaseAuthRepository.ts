@@ -142,8 +142,9 @@ export class SupabaseAuthRepository implements IAuthRepository {
   }
 
   async forgotPassword(email: string): Promise<void> {
+    const base = (process.env.EXPO_PUBLIC_WEB_AUTH_URL ?? 'https://petadopt-am.vercel.app').replace(/\/$/, '');
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: process.env.EXPO_PUBLIC_WEB_AUTH_URL ?? 'https://petadopt-auth.vercel.app',
+      redirectTo: `${base}?type=recovery`,
     });
     if (error) throw new AppError('AUTH_RESET_FAILED', error.message);
   }
